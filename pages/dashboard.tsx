@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/router';
-import Layout from '../components/Layout';
+import Layout from '@/components/Layout';
 
 export default function Dashboard() {
   const router = useRouter();

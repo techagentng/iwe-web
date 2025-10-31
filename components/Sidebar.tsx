@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { useState } from 'react';
-import styles from './Sidebar.module.css'; // Optional: use CSS module for styling
+import styles from '@/components/Sidebar.module.css';
 
 const links = [
   { href: '/dashboard', label: 'Dashboard' },
