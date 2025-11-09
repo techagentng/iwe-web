@@ -21,18 +21,14 @@ iwe-react/
 ├── locales/
 │   ├── en/
 │   │   └── common.json           # English translations
-│   ├── es/
-│   │   └── common.json           # Spanish translations
-│   ├── fr/
-│   │   └── common.json           # French translations
-│   ├── de/
-│   │   └── common.json           # German translations
-│   ├── zh/
-│   │   └── common.json           # Chinese translations
-│   ├── ja/
-│   │   └── common.json           # Japanese translations
-│   └── ar/
-│       └── common.json           # Arabic translations
+│   ├── yo/
+│   │   └── common.json           # Yorùbá translations
+│   ├── ig/
+│   │   └── common.json           # Igbo translations
+│   ├── ha/
+│   │   └── common.json           # Hausa translations
+│   └── pcm/
+│       └── common.json           # Nigerian Pidgin translations
 ├── hooks/
 │   └── useTranslation.js         # Custom translation hook
 ├── components/
@@ -45,13 +41,11 @@ iwe-react/
 
 | Code | Language | Flag |
 |------|----------|------|
-| `en` | English | 🇺🇸 |
-| `es` | Español | 🇪🇸 |
-| `fr` | Français | 🇫🇷 |
-| `de` | Deutsch | 🇩🇪 |
-| `zh` | 中文 | 🇨🇳 |
-| `ja` | 日本語 | 🇯🇵 |
-| `ar` | العربية | 🇸🇦 |
+| `en` | English | 🇬🇧 |
+| `yo` | Yorùbá | 🇳🇬 |
+| `ig` | Igbo | 🇳🇬 |
+| `ha` | Hausa | 🇳🇬 |
+| `pcm` | Nigerian Pidgin | 🇳🇬 |
 
 ## 🚀 Usage
 
@@ -183,7 +177,7 @@ module.exports = {
 module.exports = {
   i18n: {
     defaultLocale: 'en',
-    locales: ['en', 'es', 'fr', 'de', 'zh', 'ja', 'ar'],
+    locales: ['en', 'yo', 'ig', 'ha', 'pcm'],
     localePath: './locales',
     localeDetection: true,
   },
@@ -196,8 +190,10 @@ module.exports = {
 With i18n routing, URLs include the locale:
 
 - English: `http://localhost:3000/en/login`
-- Spanish: `http://localhost:3000/es/login`
-- French: `http://localhost:3000/fr/login`
+- Yorùbá: `http://localhost:3000/yo/login`
+- Igbo: `http://localhost:3000/ig/login`
+- Hausa: `http://localhost:3000/ha/login`
+- Nigerian Pidgin: `http://localhost:3000/pcm/login`
 
 The default locale (`en`) can also be accessed without the prefix:
 - `http://localhost:3000/login` → English version

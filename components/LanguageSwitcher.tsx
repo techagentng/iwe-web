@@ -10,13 +10,11 @@ interface Language {
 }
 
 const languages: Language[] = [
-  { code: 'en', name: 'English', flag: '🇺🇸' },
-  { code: 'es', name: 'Español', flag: '🇪🇸' },
-  { code: 'fr', name: 'Français', flag: '🇫🇷' },
-  { code: 'de', name: 'Deutsch', flag: '🇩🇪' },
-  { code: 'zh', name: '中文', flag: '🇨🇳' },
-  { code: 'ja', name: '日本語', flag: '🇯🇵' },
-  { code: 'ar', name: 'العربية', flag: '🇸🇦' },
+  { code: 'en', name: 'English', flag: '🇬🇧' },
+  { code: 'yo', name: 'Yorùbá', flag: '🇳🇬' },
+  { code: 'ig', name: 'Igbo', flag: '🇳🇬' },
+  { code: 'ha', name: 'Hausa', flag: '🇳🇬' },
+  { code: 'pcm', name: 'Nigerian Pidgin', flag: '🇳🇬' },
 ];
 
 export default function LanguageSwitcher() {

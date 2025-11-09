@@ -134,15 +134,7 @@ export default function Navbar() {
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2 group">
-            <motion.div
-              whileHover={{ rotate: 180 }}
-              transition={{ duration: 0.3 }}
-              className="p-2 rounded-lg"
-              style={{ backgroundColor: 'var(--accent-primary)' }}
-            >
-              <Zap className="w-5 h-5 text-white" />
-            </motion.div>
-            <span className="text-xl font-bold">IWEApp</span>
+            <img src="/logo.png" alt="IWEApp Logo" className="w-38 h-38" />
           </Link>
 
           {/* Desktop Navigation */}

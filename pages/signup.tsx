@@ -153,7 +153,7 @@ export default function Signup() {
 
           <AnimatedWrapper variants={fadeInLeft} delay={0.3}>
             <h1 className="text-5xl font-bold mb-6">
-              Join{' '}
+              {t('signup.joinThousands')}{' '}
               <span style={{ color: 'var(--accent-primary)' }}>IWEApp</span>
             </h1>
           </AnimatedWrapper>
@@ -163,7 +163,7 @@ export default function Signup() {
               className="text-xl mb-8 max-w-md"
               style={{ color: 'var(--text-secondary)' }}
             >
-              Start your journey with us and unlock powerful features to grow your business.
+              {t('landing.readyToStartDesc')}
             </p>
           </AnimatedWrapper>
 
@@ -229,9 +229,9 @@ export default function Signup() {
               >
                 <User className="w-8 h-8" style={{ color: 'var(--accent-primary)' }} />
               </motion.div>
-              <h2 className="text-3xl font-bold mb-2">Create Account</h2>
+              <h2 className="text-3xl font-bold mb-2">{t('signup.createAccount')}</h2>
               <p style={{ color: 'var(--text-secondary)' }}>
-                Join thousands of users already on IWEApp
+                {t('signup.joinThousands')}
               </p>
             </div>
           </AnimatedWrapper>
@@ -241,7 +241,7 @@ export default function Signup() {
               {/* Name Field */}
               <div>
                 <label className="block text-sm font-medium mb-2">
-                  Full Name
+                  {t('signup.fullName')}
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -249,7 +249,7 @@ export default function Signup() {
                   </div>
                   <input
                     type="text"
-                    placeholder="Enter your full name"
+                    placeholder={t('signup.fullNamePlaceholder')}
                     style={{ paddingLeft: '3rem' }}
                     value={formData.name}
                     onChange={(e) => handleInputChange('name', e.target.value)}
@@ -272,7 +272,7 @@ export default function Signup() {
               {/* Email Field */}
               <div>
                 <label className="block text-sm font-medium mb-2">
-                  Email Address
+                  {t('signup.emailAddress')}
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -280,7 +280,7 @@ export default function Signup() {
                   </div>
                   <input
                     type="email"
-                    placeholder="Enter your email address"
+                    placeholder={t('signup.emailPlaceholder')}
                     style={{ paddingLeft: '3rem' }}
                     value={formData.email}
                     onChange={(e) => handleInputChange('email', e.target.value)}
@@ -303,7 +303,7 @@ export default function Signup() {
               {/* Password Field */}
               <div>
                 <label className="block text-sm font-medium mb-2">
-                  Password
+                  {t('signup.password')}
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -311,7 +311,7 @@ export default function Signup() {
                   </div>
                   <input
                     type={showPassword ? 'text' : 'password'}
-                    placeholder="Create a strong password"
+                    placeholder={t('signup.passwordPlaceholder')}
                     style={{ paddingLeft: '3rem' }}
                     value={formData.password}
                     onChange={(e) => handleInputChange('password', e.target.value)}
@@ -345,7 +345,7 @@ export default function Signup() {
               {/* Confirm Password Field */}
               <div>
                 <label className="block text-sm font-medium mb-2">
-                  Confirm Password
+                  {t('signup.confirmPassword')}
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -353,7 +353,7 @@ export default function Signup() {
                   </div>
                   <input
                     type={showConfirmPassword ? 'text' : 'password'}
-                    placeholder="Confirm your password"
+                    placeholder={t('signup.confirmPasswordPlaceholder')}
                     style={{ paddingLeft: '3rem' }}
                     value={formData.confirmPassword}
                     onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
@@ -394,21 +394,21 @@ export default function Signup() {
                     required
                   />
                   <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                    I agree to the{' '}
+                    {t('signup.agreeToTerms')}{' '}
                     <Link 
                       href="/terms"
                       className="hover-underline" 
                       style={{ color: 'var(--accent-primary)' }}
                     >
-                      Terms of Service
+                      {t('signup.termsOfService')}
                     </Link>{' '}
-                    and{' '}
+                    {t('signup.and')}{' '}
                     <Link 
                       href="/privacy"
                       className="hover-underline" 
                       style={{ color: 'var(--accent-primary)' }}
                     >
-                      Privacy Policy
+                      {t('signup.privacyPolicy')}
                     </Link>
                   </span>
                 </label>
@@ -430,7 +430,7 @@ export default function Signup() {
                   />
                 ) : (
                   <>
-                    Create Account
+                    {t('signup.createAccountBtn')}
                     <ArrowRight className="w-5 h-5" />
                   </>
                 )}

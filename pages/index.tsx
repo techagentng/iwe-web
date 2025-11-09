@@ -23,15 +23,16 @@ export default function Landing() {
               style={{ backgroundColor: 'var(--bg-secondary)' }}
             >
               <span className="text-sm font-medium" style={{ color: 'var(--accent-primary)' }}>
-                ✨ New features available
+                ✨ {t('landing.welcome')}{' '}
+               <span style={{ color: 'var(--accent-primary)' }}>IWEAPP</span>
               </span>
             </motion.div>
           </AnimatedWrapper>
 
           <AnimatedWrapper variants={fadeInUp} delay={0.1}>
             <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold mb-6">
-              Welcome to{' '}
-              <span style={{ color: 'var(--accent-primary)' }}>IWEAPP</span>
+              {t('landing.welcome2')}{' '}
+              {/* <span style={{ color: 'var(--accent-primary)' }}>IWEAPP</span> */}
             </h1>
           </AnimatedWrapper>
 
@@ -40,8 +41,8 @@ export default function Landing() {
               className="text-xl md:text-2xl mb-8 max-w-3xl mx-auto"
               style={{ color: 'var(--text-secondary)' }}
             >
-              The modern platform that helps you manage your business with ease.
-              Built with the latest technologies for the best experience.
+              {t('landing.tagline')}
+              {t('landing.subtagline')}
             </p>
           </AnimatedWrapper>
 
@@ -53,7 +54,7 @@ export default function Landing() {
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                 >
-                  Get Started
+                  {t('landing.getStarted')}
                   <ArrowRight className="w-5 h-5" />
                 </motion.button>
               </Link>
@@ -63,7 +64,7 @@ export default function Landing() {
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                 >
-                  View Showcase
+                  {t('landing.viewShowcase')}
                 </motion.button>
               </Link>
             </div>
@@ -76,13 +77,13 @@ export default function Landing() {
         <div className="max-w-6xl mx-auto">
           <AnimatedWrapper variants={fadeInUp}>
             <h2 className="text-3xl md:text-4xl font-bold text-center mb-4">
-              Why Choose Us?
+              {t('landing.whyChooseUs')}
             </h2>
             <p 
               className="text-center text-lg mb-12 max-w-2xl mx-auto"
               style={{ color: 'var(--text-secondary)' }}
             >
-              Everything you need to succeed, all in one place
+              {t('landing.everythingYouNeed')}
             </p>
           </AnimatedWrapper>
 
@@ -90,20 +91,20 @@ export default function Landing() {
             {[
               {
                 icon: <Zap className="w-8 h-8" />,
-                title: 'Lightning Fast',
-                description: 'Built with performance in mind. Experience blazing fast load times and smooth interactions.',
+                title: t('landing.lightningFast'),
+                description: t('landing.lightningFastDesc'),
                 color: 'var(--accent-primary)',
               },
               {
                 icon: <Shield className="w-8 h-8" />,
-                title: 'Secure & Reliable',
-                description: 'Your data is protected with enterprise-grade security. We take privacy seriously.',
+                title: t('landing.secureReliable'),
+                description: t('landing.secureReliableDesc'),
                 color: 'var(--accent-success)',
               },
               {
                 icon: <TrendingUp className="w-8 h-8" />,
-                title: 'Grow Your Business',
-                description: 'Powerful tools and insights to help you make better decisions and scale faster.',
+                title: t('landing.growBusiness'),
+                description: t('landing.growBusinessDesc'),
                 color: 'var(--accent-info)',
               },
             ].map((feature, index) => (
@@ -132,92 +133,164 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* Benefits Section */}
+      {/* Why Everyone Loves iWe Section */}
       <section className="py-20 px-4">
         <div className="max-w-6xl mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-            <AnimatedWrapper variants={fadeInUp}>
-              <h2 className="text-3xl md:text-4xl font-bold mb-6">
-                Everything you need to succeed
-              </h2>
-              <p 
-                className="text-lg mb-8"
-                style={{ color: 'var(--text-secondary)' }}
-              >
-                Our platform provides all the tools and features you need to manage and grow your business effectively.
-              </p>
-              <ul className="space-y-4">
-                {[
-                  'Easy to use dashboard',
-                  'Real-time analytics',
-                  'Team collaboration tools',
-                  'Mobile-friendly design',
-                  '24/7 customer support',
-                ].map((benefit, index) => (
-                  <motion.li
-                    key={benefit}
-                    className="flex items-center gap-3"
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.1 * index }}
-                  >
-                    <div
-                      className="p-1 rounded-full"
-                      style={{ backgroundColor: 'var(--accent-success)' }}
-                    >
-                      <Check className="w-4 h-4 text-white" />
-                    </div>
-                    <span className="text-lg">{benefit}</span>
-                  </motion.li>
-                ))}
-              </ul>
-            </AnimatedWrapper>
+          <AnimatedWrapper variants={fadeInUp}>
+            <h2 className="text-4xl md:text-5xl font-bold text-center mb-16">
+              Why Everyone Loves <span style={{ color: 'var(--accent-primary)' }}>iWe</span>
+            </h2>
+          </AnimatedWrapper>
 
-            <AnimatedWrapper variants={fadeInUp} delay={0.2}>
-              <div 
-                className="rounded-2xl p-8 h-96 flex items-center justify-center"
-                style={{ backgroundColor: 'var(--bg-secondary)' }}
-              >
-                <div className="text-center">
-                  <div
-                    className="w-32 h-32 mx-auto mb-6 rounded-full flex items-center justify-center"
-                    style={{ backgroundColor: 'var(--accent-primary)' }}
-                  >
-                    <Zap className="w-16 h-16 text-white" />
+          <div className="space-y-8">
+            {[
+              {
+                title: 'PDF or Photo Upload',
+                description: 'Drag any bank statement. We read every line in seconds.',
+                icon: '📄',
+              },
+              {
+                title: 'Ask Poko Anything',
+                description: 'Type or speak: "How much on transport?" → Get a chart + response instantly.',
+                icon: '🤖',
+              },
+              {
+                title: '100% For Nigeria & Global',
+                description: '₦ currency, language toggle, voice input',
+                icon: '🌍',
+              },
+            ].map((feature, index) => (
+              <AnimatedWrapper key={feature.title} variants={fadeInUp} delay={0.1 * index}>
+                <motion.div
+                  className="card p-8 flex items-center gap-6"
+                  whileHover={{ x: 8, scale: 1.02 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <div className="text-5xl">{feature.icon}</div>
+                  <div className="flex-1">
+                    <h3 className="text-2xl font-bold mb-2">{feature.title}</h3>
+                    <p className="text-lg" style={{ color: 'var(--text-secondary)' }}>
+                      {feature.description}
+                    </p>
                   </div>
-                  <p className="text-xl font-semibold" style={{ color: 'var(--text-secondary)' }}>
-                    Your success starts here
-                  </p>
-                </div>
-              </div>
-            </AnimatedWrapper>
+                </motion.div>
+              </AnimatedWrapper>
+            ))}
           </div>
+
+          <AnimatedWrapper variants={fadeInUp} delay={0.4}>
+            <div className="text-center mt-12">
+              <Link href="#features">
+                <motion.button
+                  className="btn-secondary text-lg px-8 py-4 flex items-center gap-2 mx-auto"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  Discover More Features
+                  <ArrowRight className="w-5 h-5" />
+                </motion.button>
+              </Link>
+              <p className="mt-4 text-lg" style={{ color: 'var(--text-secondary)' }}>
+                Invoicing, Bookkeeping, Inventory, Accounting – All in One.
+              </p>
+            </div>
+          </AnimatedWrapper>
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section 
-        className="py-20 px-4"
-        style={{ backgroundColor: 'var(--bg-secondary)' }}
-      >
+      {/* How iWe Works Section */}
+      <section className="py-20 px-4" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+        <div className="max-w-6xl mx-auto">
+          <AnimatedWrapper variants={fadeInUp}>
+            <h2 className="text-4xl md:text-5xl font-bold text-center mb-16">
+              How iWe Works in <span style={{ color: 'var(--accent-primary)' }}>3 Steps</span>
+            </h2>
+          </AnimatedWrapper>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {[
+              {
+                step: '1',
+                title: 'Upload Statement',
+                description: 'PDF or photo. We extract every transaction instantly.',
+                icon: '📤',
+              },
+              {
+                step: '2',
+                title: 'Ask Poko',
+                description: '"Show transport" or "How much on data?" → Get a chart in seconds.',
+                icon: '💬',
+              },
+              {
+                step: '3',
+                title: 'See & Act',
+                description: 'Live dashboard. Tap to recategorize. Export anytime.',
+                icon: '📊',
+              },
+            ].map((step, index) => (
+              <AnimatedWrapper key={step.title} variants={fadeInUp} delay={0.1 * index}>
+                <motion.div
+                  className="text-center"
+                  whileHover={{ y: -8 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <div
+                    className="w-20 h-20 mx-auto mb-6 rounded-full flex items-center justify-center text-3xl font-bold text-white"
+                    style={{ backgroundColor: 'var(--accent-primary)' }}
+                  >
+                    {step.step}
+                  </div>
+                  <div className="text-4xl mb-4">{step.icon}</div>
+                  <h3 className="text-xl font-bold mb-3">{step.title}</h3>
+                  <p style={{ color: 'var(--text-secondary)' }}>
+                    {step.description}
+                  </p>
+                </motion.div>
+              </AnimatedWrapper>
+            ))}
+          </div>
+
+          <AnimatedWrapper variants={fadeInUp} delay={0.4}>
+            <div className="text-center mt-12">
+              <Link href="#business">
+                <motion.button
+                  className="btn-secondary text-lg px-8 py-4 flex items-center gap-2 mx-auto"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  Explore Business Tools
+                  <ArrowRight className="w-5 h-5" />
+                </motion.button>
+              </Link>
+              <p className="mt-4 text-lg" style={{ color: 'var(--text-secondary)' }}>
+                From invoicing clients to tracking inventory – scale effortlessly.
+              </p>
+            </div>
+          </AnimatedWrapper>
+        </div>
+      </section>
+
+      {/* Final CTA Section */}
+      <section className="py-20 px-4">
         <div className="max-w-4xl mx-auto text-center">
           <AnimatedWrapper variants={fadeInUp}>
-            <h2 className="text-3xl md:text-4xl font-bold mb-6">
-              Ready to get started?
+            <h2 className="text-4xl md:text-5xl font-bold mb-6">
+              Ready to See Your <span style={{ color: 'var(--accent-primary)' }}>Money Clearly?</span>
             </h2>
-            <p 
-              className="text-xl mb-8"
-              style={{ color: 'var(--text-secondary)' }}
-            >
-              Join thousands of businesses already using our platform
-            </p>
+            <div className="mb-8">
+              <p className="text-2xl font-semibold mb-2">Start Free – No Card Required</p>
+              <p className="text-lg" style={{ color: 'var(--text-secondary)' }}>
+                First 42 transactions on us. Upgrade anytime.
+              </p>
+            </div>
             <Link href="/signup">
               <motion.button
-                className="btn-primary text-lg px-8 py-4"
+                className="btn-primary text-xl px-10 py-5 flex items-center gap-3 mx-auto"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
               >
-                Start Free Trial
+                Start Now
+                <ArrowRight className="w-6 h-6" />
               </motion.button>
             </Link>
           </AnimatedWrapper>
@@ -229,10 +302,34 @@ export default function Landing() {
         className="py-12 px-4 border-t"
         style={{ borderColor: 'var(--border-color)' }}
       >
-        <div className="max-w-6xl mx-auto text-center">
-          <p style={{ color: 'var(--text-secondary)' }}>
-            © 2025 MyApp. All rights reserved.
-          </p>
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-8">
+            <p style={{ color: 'var(--text-secondary)' }}>
+              © 2025 iWe. Made in Nigeria
+            </p>
+          </div>
+          
+          <div className="flex flex-col md:flex-row justify-center items-center gap-6 text-center">
+            <div className="flex flex-wrap justify-center gap-6">
+              <Link href="/privacy" className="hover:opacity-70 transition-opacity" style={{ color: 'var(--text-secondary)' }}>
+                Privacy
+              </Link>
+              <Link href="/terms" className="hover:opacity-70 transition-opacity" style={{ color: 'var(--text-secondary)' }}>
+                Terms
+              </Link>
+              <a href="mailto:hello@iweapps.com" className="hover:opacity-70 transition-opacity" style={{ color: 'var(--text-secondary)' }}>
+                Support: hello@iweapps.com
+              </a>
+            </div>
+            
+            <div className="flex flex-wrap justify-center gap-4">
+              <span style={{ color: 'var(--text-secondary)' }}>More Features:</span>
+              <span className="font-medium">Invoicing</span>
+              <span className="font-medium">Bookkeeping</span>
+              <span className="font-medium">Inventory</span>
+              <span className="font-medium">Accounting</span>
+            </div>
+          </div>
         </div>
       </footer>
     </div>

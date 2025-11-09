@@ -155,9 +155,9 @@ export default function Login() {
               >
                 <Lock className="w-8 h-8" style={{ color: 'var(--accent-primary)' }} />
               </motion.div>
-              <h2 className="text-3xl font-bold mb-2">Welcome Back</h2>
+              <h2 className="text-3xl font-bold mb-2">{t('login.welcomeBack')}</h2>
               <p style={{ color: 'var(--text-secondary)' }}>
-                Sign in to your account to continue
+                {t('login.signInToContinue')}
               </p>
             </div>
           </AnimatedWrapper>
@@ -167,7 +167,7 @@ export default function Login() {
               {/* Email Field */}
               <div>
                 <label className="block text-sm font-medium mb-2">
-                  Email or Username
+                  {t('login.emailOrUsername')}
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -175,12 +175,15 @@ export default function Login() {
                   </div>
                   <input
                     type="text"
-                    placeholder="Enter your email or username"
-                    style={{ paddingLeft: '3rem' }}
                     value={user}
                     onChange={(e) => setUser(e.target.value)}
-                    className="input w-full pl-10"
-                    required
+                    className="w-full pl-10 pr-3 py-3 rounded-lg border focus:outline-none focus:ring-2"
+                    style={{ 
+                      borderColor: 'var(--border-color)',
+                      backgroundColor: 'var(--bg-secondary)',
+                      outlineColor: 'var(--accent-primary)'
+                    }}
+                    placeholder={t('login.emailPlaceholder')}
                   />
                 </div>
               </div>
@@ -188,7 +191,7 @@ export default function Login() {
               {/* Password Field */}
               <div>
                 <label className="block text-sm font-medium mb-2">
-                  Password
+                  {t('login.password')}
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -196,7 +199,7 @@ export default function Login() {
                   </div>
                   <input
                     type={showPassword ? 'text' : 'password'}
-                    placeholder="Enter your password"
+                    placeholder={t('login.passwordPlaceholder')}
                     value={pass}
                     onChange={(e) => setPass(e.target.value)}
                     className="input w-full pl-10 pr-10"
@@ -225,14 +228,14 @@ export default function Login() {
                     className="w-4 h-4"
                     style={{ accentColor: 'var(--accent-primary)' }}
                   />
-                  <span className="text-sm">Remember me</span>
+                  <span className="text-sm">{t('navigation.rememberMe')}</span>
                 </label>
                 <Link 
                   href="/forgot-password"
                   className="text-sm hover:underline"
                   style={{ color: 'var(--accent-primary)' }}
                 >
-                  Forgot password?
+                  {t('navigation.forgotPassword')}
                 </Link>
               </div>
 
@@ -264,7 +267,7 @@ export default function Login() {
                   />
                 ) : (
                   <>
-                    Sign In
+                    {t('login.signIn')}
                     <ArrowRight className="w-5 h-5" />
                   </>
                 )}
@@ -297,13 +300,13 @@ export default function Login() {
           <AnimatedWrapper variants={fadeInUp} delay={0.5}>
             <div className="mt-8 text-center">
               <p style={{ color: 'var(--text-secondary)' }}>
-                Don't have an account?{' '}
+                {t('login.dontHaveAccount')}{' '}
                 <Link 
                   href="/signup"
                   className="font-medium hover:underline"
                   style={{ color: 'var(--accent-primary)' }}
                 >
-                  Sign up
+                  {t('login.signUp')}
                 </Link>
               </p>
             </div>

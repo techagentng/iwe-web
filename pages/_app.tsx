@@ -5,6 +5,7 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { useState } from 'react';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { appWithTranslation } from 'next-i18next';
+import SmartSuppChat from '@/components/SmartSuppChat';
 
 function App({ Component, pageProps }: AppProps) {
   // Create a client instance per app instance to avoid sharing state between users
@@ -25,6 +26,7 @@ function App({ Component, pageProps }: AppProps) {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <Component {...pageProps} />
+        <SmartSuppChat />
       </ThemeProvider>
       <ReactQueryDevtools initialIsOpen={false} />
     </QueryClientProvider>
