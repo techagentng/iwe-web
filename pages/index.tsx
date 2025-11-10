@@ -171,7 +171,7 @@ export default function Landing() {
                 icon: '📄',
               },
               {
-                title: 'Ask Poko Anything',
+                title: 'Ask IWE Anything',
                 description: 'Type or speak: "How much on transport?" → Get a chart + response instantly.',
                 icon: '🤖',
               },
@@ -238,7 +238,7 @@ export default function Landing() {
               },
               {
                 step: '2',
-                title: 'Ask Poko',
+                title: 'Ask IWE',
                 description: '"Show transport" or "How much on data?" → Get a chart in seconds.',
                 icon: '💬',
               },
