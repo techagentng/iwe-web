@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-const exemptedPaths = ['/', '/login', '/signup', '/pricing', '/dashboard'];
+const exemptedPaths = ['/', '/login', '/signup', '/pricing', '/dashboard', '/example-chat'];
 
 export function middleware(req: NextRequest) {
   const isAuthenticated = req.cookies.get('auth');

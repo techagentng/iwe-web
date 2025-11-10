@@ -120,7 +120,7 @@ export default function Navbar() {
     },
     {
       label: t('navigation.dashboard'),
-      href: '/dashboard',
+      href: '/example-chat',
     },
   ];
 
