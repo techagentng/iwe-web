@@ -1,11 +1,14 @@
 import Link from 'next/link';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function ExampleChat() {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [messages, setMessages] = useState<Array<{role: 'user' | 'assistant', content: string}>>([]);
   const [inputValue, setInputValue] = useState('');
+  const [streamingMessageIndex, setStreamingMessageIndex] = useState<number | null>(null);
+  const [displayedContent, setDisplayedContent] = useState('');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const pdfInputRef = useRef<HTMLInputElement>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -13,18 +16,47 @@ export default function ExampleChat() {
   const handleSendMessage = () => {
     if (inputValue.trim()) {
       // Add user message
-      setMessages([...messages, { role: 'user', content: inputValue }]);
+      const newMessages = [...messages, { role: 'user' as const, content: inputValue }];
+      setMessages(newMessages);
       setInputValue('');
       
       // Simulate AI response after a short delay
       setTimeout(() => {
+        const aiResponse = 'This is a simulated response. In a real implementation, this would be connected to your AI backend.';
+        const aiMessageIndex = newMessages.length;
+        
+        // Add empty assistant message that will be streamed
         setMessages(prev => [...prev, { 
           role: 'assistant', 
-          content: 'This is a simulated response. In a real implementation, this would be connected to your AI backend.' 
+          content: aiResponse
         }]);
+        
+        // Start streaming effect
+        setStreamingMessageIndex(aiMessageIndex);
+        setDisplayedContent('');
       }, 1000);
     }
   };
+
+  // Streaming effect for AI responses
+  useEffect(() => {
+    if (streamingMessageIndex !== null && messages[streamingMessageIndex]) {
+      const fullContent = messages[streamingMessageIndex].content;
+      let currentIndex = 0;
+      
+      const intervalId = setInterval(() => {
+        if (currentIndex < fullContent.length) {
+          setDisplayedContent(fullContent.slice(0, currentIndex + 1));
+          currentIndex++;
+        } else {
+          clearInterval(intervalId);
+          setStreamingMessageIndex(null);
+        }
+      }, 20); // Adjust speed here (lower = faster)
+      
+      return () => clearInterval(intervalId);
+    }
+  }, [streamingMessageIndex, messages]);
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -37,12 +69,42 @@ export default function ExampleChat() {
     setMessages([]);
     setInputValue('');
     setShowUploadModal(false);
+    setStreamingMessageIndex(null);
+    setDisplayedContent('');
+    setIsSidebarOpen(false);
   };
   return (
     <div className="flex h-screen" style={{ backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
       
+      {/* Mobile Menu Button */}
+      <button
+        className="fixed top-4 left-4 z-50 p-2 rounded-lg md:hidden"
+        style={{ backgroundColor: 'var(--bg-secondary)' }}
+        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+      >
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M3 12H21M3 6H21M3 18H21" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+        </svg>
+      </button>
+
+      {/* Sidebar Overlay for Mobile */}
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+      
       {/* Sidebar */}
-      <aside className="w-64 flex flex-col p-4" style={{ borderRight: '1px solid var(--border-color)' }}>
+      <aside 
+        className={`w-64 flex flex-col p-4 fixed md:relative h-full z-40 transition-transform duration-300 md:translate-x-0 ${
+          isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+        style={{ 
+          borderRight: '1px solid var(--border-color)',
+          backgroundColor: 'var(--bg-primary)'
+        }}
+      >
         <div className="text-xl font-semibold mb-6">ChatIWE</div>
 
         {/* New Chat Button */}
@@ -419,7 +481,12 @@ export default function ExampleChat() {
                       }}
                     >
                       <p style={{ color: message.role === 'user' ? 'white' : 'var(--text-primary)' }}>
-                        {message.content}
+                        {streamingMessageIndex === index ? (
+                          <>
+                            {displayedContent}
+                            <span className="animate-pulse">▋</span>
+                          </>
+                        ) : message.content}
                       </p>
                     </div>
                     {message.role === 'user' && (
