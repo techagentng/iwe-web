@@ -36,14 +36,14 @@ export default function Landing() {
       />
       
       {/* Hero Section */}
-      <section className="pt-32 pb-20 px-4">
+      <section className="pt-20 md:pt-32 pb-16 md:pb-20 px-4">
         <div className="max-w-6xl mx-auto text-center">
           <AnimatedWrapper variants={fadeInUp}>
             <motion.div
-              className="inline-block px-4 py-2 rounded-full mb-6"
+              className="inline-block px-3 md:px-4 py-1.5 md:py-2 rounded-full mb-4 md:mb-6"
               style={{ backgroundColor: 'var(--bg-secondary)' }}
             >
-              <span className="text-sm font-medium" style={{ color: 'var(--accent-primary)' }}>
+              <span className="text-xs md:text-sm font-medium" style={{ color: 'var(--accent-primary)' }}>
                 ✨ {t('landing.welcome')}{' '}
                <span style={{ color: 'var(--accent-primary)' }}>IWEAPP</span>
               </span>
@@ -51,7 +51,7 @@ export default function Landing() {
           </AnimatedWrapper>
 
           <AnimatedWrapper variants={fadeInUp} delay={0.1}>
-            <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold mb-6">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold mb-4 md:mb-6 leading-tight">
               {t('landing.welcome2')}{' '}
               {/* <span style={{ color: 'var(--accent-primary)' }}>IWEAPP</span> */}
             </h1>
@@ -59,7 +59,7 @@ export default function Landing() {
 
           <AnimatedWrapper variants={fadeInUp} delay={0.2}>
             <p 
-              className="text-xl md:text-2xl mb-8 max-w-3xl mx-auto"
+              className="text-base sm:text-lg md:text-xl lg:text-2xl mb-6 md:mb-8 max-w-3xl mx-auto px-2"
               style={{ color: 'var(--text-secondary)' }}
             >
               {t('landing.tagline')}
@@ -68,20 +68,20 @@ export default function Landing() {
           </AnimatedWrapper>
 
           <AnimatedWrapper variants={fadeInUp} delay={0.3}>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-              <Link href="/signup">
+            <div className="flex flex-col sm:flex-row gap-3 md:gap-4 justify-center items-center px-2">
+              <Link href="/signup" className="w-full sm:w-auto">
                 <motion.button
-                  className="btn-primary text-lg px-8 py-4 flex items-center gap-2"
+                  className="btn-primary text-base md:text-lg px-6 md:px-8 py-3 md:py-4 flex items-center justify-center gap-2 w-full sm:w-auto"
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                 >
                   {t('landing.getStarted')}
-                  <ArrowRight className="w-5 h-5" />
+                  <ArrowRight className="w-4 md:w-5 h-4 md:h-5" />
                 </motion.button>
               </Link>
-              <Link href="/theme-showcase">
+              <Link href="/theme-showcase" className="w-full sm:w-auto">
                 <motion.button
-                  className="btn-secondary text-lg px-8 py-4"
+                  className="btn-secondary text-base md:text-lg px-6 md:px-8 py-3 md:py-4 w-full sm:w-auto"
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                 >
