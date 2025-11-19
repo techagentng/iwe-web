@@ -1,6 +1,9 @@
 import Link from 'next/link';
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { api } from '@/lib/api';
+import { useWebSocket } from '@/lib/websocket';
+import { WebSocketMessage, ProcessingJob } from '@/types/index';
 
 type Attachment = {
   id: string;
@@ -9,42 +12,168 @@ type Attachment = {
   size: number;
   status: 'uploading' | 'completed' | 'error';
   progress: number;
+  jobId?: string; // Link to backend job
+  file?: File; // Store file for actual upload
 };
 
 export default function ExampleChat() {
   const [showUploadModal, setShowUploadModal] = useState(false);
-  const [messages, setMessages] = useState<Array<{role: 'user' | 'assistant', content: string}>>([]);
+  const [messages, setMessages] = useState<Array<{role: 'user' | 'assistant', content: string, jobId?: string}>>([]);
   const [inputValue, setInputValue] = useState('');
   const [streamingMessageIndex, setStreamingMessageIndex] = useState<number | null>(null);
   const [displayedContent, setDisplayedContent] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [currentJobId, setCurrentJobId] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  
   const pdfInputRef = useRef<HTMLInputElement>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
-  const handleSendMessage = () => {
-    if (inputValue.trim()) {
-      // Add user message
-      const newMessages = [...messages, { role: 'user' as const, content: inputValue }];
-      setMessages(newMessages);
-      setInputValue('');
-      
-      // Simulate AI response after a short delay
-      setTimeout(() => {
-        const aiResponse = 'This is a simulated response. In a real implementation, this would be connected to your AI backend.';
-        const aiMessageIndex = newMessages.length;
+  // WebSocket connection for real-time updates
+  const { isConnected, lastMessage } = useWebSocket({
+    onMessage: handleWebSocketMessage,
+    onConnect: () => console.log('Connected to server'),
+    onDisconnect: () => console.log('Disconnected from server'),
+  });
+
+  // Handle WebSocket messages
+  function handleWebSocketMessage(message: WebSocketMessage) {
+    console.log('📨 WebSocket message:', message);
+
+    switch (message.type) {
+      case 'job_update':
+        // Update job progress
+        if (message.job_id === currentJobId) {
+          setAttachments(prev => prev.map(att => 
+            att.jobId === message.job_id 
+              ? { ...att, progress: message.progress || 0 }
+              : att
+          ));
+        }
+        break;
+
+      case 'ai_chunk':
+        // Stream AI response chunks
+        if (message.job_id === currentJobId && streamingMessageIndex !== null) {
+          setDisplayedContent(message.partial || message.chunk || '');
+        }
+        break;
+
+      case 'job_completed':
+        // Job finished successfully
+        if (message.job_id === currentJobId) {
+          setIsProcessing(false);
+          setAttachments(prev => prev.map(att => 
+            att.jobId === message.job_id 
+              ? { ...att, status: 'completed', progress: 100 }
+              : att
+          ));
+          
+          // Update message with final AI response
+          if (streamingMessageIndex !== null && message.ai_response) {
+            setMessages(prev => prev.map((msg, idx) => 
+              idx === streamingMessageIndex 
+                ? { ...msg, content: message.ai_response! }
+                : msg
+            ));
+            setStreamingMessageIndex(null);
+          }
+        }
+        break;
+
+      case 'job_failed':
+        // Job failed
+        if (message.job_id === currentJobId) {
+          setIsProcessing(false);
+          setAttachments(prev => prev.map(att => 
+            att.jobId === message.job_id 
+              ? { ...att, status: 'error', progress: 0 }
+              : att
+          ));
+          
+          // Show error message
+          if (streamingMessageIndex !== null) {
+            setMessages(prev => prev.map((msg, idx) => 
+              idx === streamingMessageIndex 
+                ? { ...msg, content: `Error: ${message.error || 'Processing failed'}` }
+                : msg
+            ));
+            setStreamingMessageIndex(null);
+          }
+        }
+        break;
+    }
+  }
+
+  const handleSendMessage = async () => {
+    if (!inputValue.trim() && attachments.length === 0) return;
+
+    const prompt = inputValue.trim() || 'Analyze this document';
+    
+    // Add user message
+    const newMessages = [...messages, { role: 'user' as const, content: prompt }];
+    setMessages(newMessages);
+    setInputValue('');
+    setIsProcessing(true);
+
+    try {
+      // If there are attachments, upload them
+      if (attachments.length > 0) {
+        const completedAttachment = attachments.find(att => att.status === 'completed' && att.file);
         
-        // Add empty assistant message that will be streamed
-        setMessages(prev => [...prev, { 
-          role: 'assistant', 
-          content: aiResponse
-        }]);
-        
-        // Start streaming effect
-        setStreamingMessageIndex(aiMessageIndex);
-        setDisplayedContent('');
-      }, 1000);
+        if (completedAttachment && completedAttachment.file) {
+          // Upload file to backend
+          const response = await api.uploadFile(
+            completedAttachment.file,
+            prompt,
+            0, // priority (can be made configurable)
+            undefined // scheduledAt (can be made configurable)
+          );
+
+          console.log('✅ Upload response:', response);
+
+          // Store job ID
+          setCurrentJobId(response.data.job_id);
+          
+          // Update attachment with job ID
+          setAttachments(prev => prev.map(att => 
+            att.id === completedAttachment.id 
+              ? { ...att, jobId: response.data.job_id, progress: response.data.progress }
+              : att
+          ));
+
+          // Add placeholder AI message that will be streamed
+          const aiMessageIndex = newMessages.length;
+          setMessages(prev => [...prev, { 
+            role: 'assistant', 
+            content: '',
+            jobId: response.data.job_id
+          }]);
+          
+          // Start streaming effect
+          setStreamingMessageIndex(aiMessageIndex);
+          setDisplayedContent('Processing...');
+        }
+      } else {
+        // No attachments - just simulate response (or handle text-only queries)
+        setTimeout(() => {
+          const aiResponse = 'Please upload a document to analyze.';
+          setMessages(prev => [...prev, { 
+            role: 'assistant', 
+            content: aiResponse
+          }]);
+          setIsProcessing(false);
+        }, 500);
+      }
+    } catch (error) {
+      console.error('Upload error:', error);
+      setMessages(prev => [...prev, { 
+        role: 'assistant', 
+        content: `Error: ${error instanceof Error ? error.message : 'Upload failed'}` 
+      }]);
+      setIsProcessing(false);
     }
   };
 
@@ -83,6 +212,8 @@ export default function ExampleChat() {
     setDisplayedContent('');
     setIsSidebarOpen(false);
     setAttachments([]);
+    setCurrentJobId(null);
+    setIsProcessing(false);
   };
 
   const removeAttachment = (id: string) => {
@@ -94,6 +225,22 @@ export default function ExampleChat() {
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
+
+  // File upload handler
+  const handleFileSelect = (file: File, type: 'pdf' | 'csv' | 'image') => {
+    const newAttachment: Attachment = {
+      id: Math.random().toString(36).substr(2, 9),
+      name: file.name,
+      type,
+      size: file.size,
+      status: 'completed', // Mark as completed immediately (will upload on send)
+      progress: 100,
+      file, // Store the file for later upload
+    };
+    
+    setAttachments(prev => [...prev, newAttachment]);
+    setShowUploadModal(false);
+  };
   return (
     <div className="flex h-screen" style={{ backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
       {/* Hidden file inputs - kept outside modals to persist in DOM */}
@@ -104,40 +251,7 @@ export default function ExampleChat() {
         className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0];
-          if (file) {
-            const newAttachment: Attachment = {
-              id: Math.random().toString(36).substr(2, 9),
-              name: file.name,
-              type: 'pdf',
-              size: file.size,
-              status: 'uploading',
-              progress: 0
-            };
-            setAttachments(prev => [...prev, newAttachment]);
-            
-            // Simulate upload progress
-            let progress = 0;
-            const progressInterval = setInterval(() => {
-              progress += Math.random() * 30;
-              if (progress >= 100) {
-                progress = 100;
-                clearInterval(progressInterval);
-                setTimeout(() => {
-                  setAttachments(prev => prev.map(att => 
-                    att.id === newAttachment.id 
-                      ? { ...att, status: 'completed', progress: 100 }
-                      : att
-                  ));
-                }, 200);
-              }
-              setAttachments(prev => prev.map(att => 
-                att.id === newAttachment.id 
-                  ? { ...att, progress: Math.min(progress, 100) }
-                  : att
-              ));
-            }, 150);
-          }
-          setShowUploadModal(false);
+          if (file) handleFileSelect(file, 'pdf');
           e.target.value = '';
         }}
       />
@@ -148,40 +262,7 @@ export default function ExampleChat() {
         className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0];
-          if (file) {
-            const newAttachment: Attachment = {
-              id: Math.random().toString(36).substr(2, 9),
-              name: file.name,
-              type: 'csv',
-              size: file.size,
-              status: 'uploading',
-              progress: 0
-            };
-            setAttachments(prev => [...prev, newAttachment]);
-            
-            // Simulate upload progress
-            let progress = 0;
-            const progressInterval = setInterval(() => {
-              progress += Math.random() * 30;
-              if (progress >= 100) {
-                progress = 100;
-                clearInterval(progressInterval);
-                setTimeout(() => {
-                  setAttachments(prev => prev.map(att => 
-                    att.id === newAttachment.id 
-                      ? { ...att, status: 'completed', progress: 100 }
-                      : att
-                  ));
-                }, 200);
-              }
-              setAttachments(prev => prev.map(att => 
-                att.id === newAttachment.id 
-                  ? { ...att, progress: Math.min(progress, 100) }
-                  : att
-              ));
-            }, 150);
-          }
-          setShowUploadModal(false);
+          if (file) handleFileSelect(file, 'csv');
           e.target.value = '';
         }}
       />
@@ -192,40 +273,7 @@ export default function ExampleChat() {
         className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0];
-          if (file) {
-            const newAttachment: Attachment = {
-              id: Math.random().toString(36).substr(2, 9),
-              name: file.name,
-              type: 'image',
-              size: file.size,
-              status: 'uploading',
-              progress: 0
-            };
-            setAttachments(prev => [...prev, newAttachment]);
-            
-            // Simulate upload progress
-            let progress = 0;
-            const progressInterval = setInterval(() => {
-              progress += Math.random() * 30;
-              if (progress >= 100) {
-                progress = 100;
-                clearInterval(progressInterval);
-                setTimeout(() => {
-                  setAttachments(prev => prev.map(att => 
-                    att.id === newAttachment.id 
-                      ? { ...att, status: 'completed', progress: 100 }
-                      : att
-                  ));
-                }, 200);
-              }
-              setAttachments(prev => prev.map(att => 
-                att.id === newAttachment.id 
-                  ? { ...att, progress: Math.min(progress, 100) }
-                  : att
-              ));
-            }, 150);
-          }
-          setShowUploadModal(false);
+          if (file) handleFileSelect(file, 'image');
           e.target.value = '';
         }}
       />
@@ -260,7 +308,12 @@ export default function ExampleChat() {
           backgroundColor: 'var(--bg-primary)'
         }}
       >
-        <div className="text-xl font-semibold mb-6">ChatIWE</div>
+        <div className="text-xl font-semibold mb-6 flex items-center gap-2">
+          ChatIWE
+          {isConnected && (
+            <div className="w-2 h-2 rounded-full bg-green-500" title="Connected" />
+          )}
+        </div>
 
         {/* New Chat Button */}
         <button 
@@ -420,6 +473,12 @@ export default function ExampleChat() {
 
       {/* Main content */}
       <main className="flex-1 flex flex-col relative">
+        {/* Connection status indicator */}
+        {!isConnected && messages.length > 0 && (
+          <div className="absolute top-4 right-4 px-3 py-2 rounded-lg text-white text-sm z-50" style={{ backgroundColor: '#f59e0b' }}>
+            Reconnecting...
+          </div>
+        )}
         
         {messages.length === 0 ? (
           /* Empty state - centered title and input */
