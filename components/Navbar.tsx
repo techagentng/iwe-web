@@ -254,15 +254,6 @@ export default function Navbar() {
                 {t('navigation.login')}
               </motion.div>
             </Link>
-            <Link href="/signup">
-              <motion.div
-                className="btn-primary cursor-pointer"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                {t('navigation.signup')}
-              </motion.div>
-            </Link>
           </div>
 
           {/* Mobile Menu Button */}

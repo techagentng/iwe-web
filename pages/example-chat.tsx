@@ -2,6 +2,15 @@ import Link from 'next/link';
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
+type Attachment = {
+  id: string;
+  name: string;
+  type: 'pdf' | 'csv' | 'image';
+  size: number;
+  status: 'uploading' | 'completed' | 'error';
+  progress: number;
+};
+
 export default function ExampleChat() {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [messages, setMessages] = useState<Array<{role: 'user' | 'assistant', content: string}>>([]);
@@ -9,6 +18,7 @@ export default function ExampleChat() {
   const [streamingMessageIndex, setStreamingMessageIndex] = useState<number | null>(null);
   const [displayedContent, setDisplayedContent] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
   const pdfInputRef = useRef<HTMLInputElement>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -72,9 +82,154 @@ export default function ExampleChat() {
     setStreamingMessageIndex(null);
     setDisplayedContent('');
     setIsSidebarOpen(false);
+    setAttachments([]);
+  };
+
+  const removeAttachment = (id: string) => {
+    setAttachments(prev => prev.filter(att => att.id !== id));
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
   return (
     <div className="flex h-screen" style={{ backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
+      {/* Hidden file inputs - kept outside modals to persist in DOM */}
+      <input
+        ref={pdfInputRef}
+        type="file"
+        accept=".pdf"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) {
+            const newAttachment: Attachment = {
+              id: Math.random().toString(36).substr(2, 9),
+              name: file.name,
+              type: 'pdf',
+              size: file.size,
+              status: 'uploading',
+              progress: 0
+            };
+            setAttachments(prev => [...prev, newAttachment]);
+            
+            // Simulate upload progress
+            let progress = 0;
+            const progressInterval = setInterval(() => {
+              progress += Math.random() * 30;
+              if (progress >= 100) {
+                progress = 100;
+                clearInterval(progressInterval);
+                setTimeout(() => {
+                  setAttachments(prev => prev.map(att => 
+                    att.id === newAttachment.id 
+                      ? { ...att, status: 'completed', progress: 100 }
+                      : att
+                  ));
+                }, 200);
+              }
+              setAttachments(prev => prev.map(att => 
+                att.id === newAttachment.id 
+                  ? { ...att, progress: Math.min(progress, 100) }
+                  : att
+              ));
+            }, 150);
+          }
+          setShowUploadModal(false);
+          e.target.value = '';
+        }}
+      />
+      <input
+        ref={csvInputRef}
+        type="file"
+        accept=".csv"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) {
+            const newAttachment: Attachment = {
+              id: Math.random().toString(36).substr(2, 9),
+              name: file.name,
+              type: 'csv',
+              size: file.size,
+              status: 'uploading',
+              progress: 0
+            };
+            setAttachments(prev => [...prev, newAttachment]);
+            
+            // Simulate upload progress
+            let progress = 0;
+            const progressInterval = setInterval(() => {
+              progress += Math.random() * 30;
+              if (progress >= 100) {
+                progress = 100;
+                clearInterval(progressInterval);
+                setTimeout(() => {
+                  setAttachments(prev => prev.map(att => 
+                    att.id === newAttachment.id 
+                      ? { ...att, status: 'completed', progress: 100 }
+                      : att
+                  ));
+                }, 200);
+              }
+              setAttachments(prev => prev.map(att => 
+                att.id === newAttachment.id 
+                  ? { ...att, progress: Math.min(progress, 100) }
+                  : att
+              ));
+            }, 150);
+          }
+          setShowUploadModal(false);
+          e.target.value = '';
+        }}
+      />
+      <input
+        ref={imageInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) {
+            const newAttachment: Attachment = {
+              id: Math.random().toString(36).substr(2, 9),
+              name: file.name,
+              type: 'image',
+              size: file.size,
+              status: 'uploading',
+              progress: 0
+            };
+            setAttachments(prev => [...prev, newAttachment]);
+            
+            // Simulate upload progress
+            let progress = 0;
+            const progressInterval = setInterval(() => {
+              progress += Math.random() * 30;
+              if (progress >= 100) {
+                progress = 100;
+                clearInterval(progressInterval);
+                setTimeout(() => {
+                  setAttachments(prev => prev.map(att => 
+                    att.id === newAttachment.id 
+                      ? { ...att, status: 'completed', progress: 100 }
+                      : att
+                  ));
+                }, 200);
+              }
+              setAttachments(prev => prev.map(att => 
+                att.id === newAttachment.id 
+                  ? { ...att, progress: Math.min(progress, 100) }
+                  : att
+              ));
+            }, 150);
+          }
+          setShowUploadModal(false);
+          e.target.value = '';
+        }}
+      />
+      
       
       {/* Mobile Menu Button */}
       <button
@@ -276,6 +431,100 @@ export default function ExampleChat() {
             
             {/* Centered input */}
             <div className="w-full max-w-3xl relative">
+              {/* Attachments Display */}
+              {attachments.length > 0 && (
+                <div className="mb-3 space-y-2">
+                  {attachments.map((attachment) => (
+                    <motion.div
+                      key={attachment.id}
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="flex items-center gap-3 p-3 rounded-xl border"
+                      style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}
+                    >
+                      {/* File Icon */}
+                      <div 
+                        className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
+                        style={{ 
+                          backgroundColor: attachment.type === 'pdf' ? 'var(--accent-primary)' : 
+                                          attachment.type === 'csv' ? 'var(--accent-success)' : 
+                                          'var(--accent-info)' 
+                        }}
+                      >
+                        {attachment.type === 'pdf' && (
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M14 2H6C5.46957 2 4.96086 2.21071 4.58579 2.58579C4.21071 2.96086 4 3.46957 4 4V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V8L14 2Z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                            <path d="M14 2V8H20" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        )}
+                        {attachment.type === 'csv' && (
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M14 2H6C5.46957 2 4.96086 2.21071 4.58579 2.58579C4.21071 2.96086 4 3.46957 4 4V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V8L14 2Z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                            <path d="M14 2V8H20" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                            <path d="M8 13H16M8 17H16" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+                          </svg>
+                        )}
+                        {attachment.type === 'image' && (
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                            <path d="M8.5 10C9.32843 10 10 9.32843 10 8.5C10 7.67157 9.32843 7 8.5 7C7.67157 7 7 7.67157 7 8.5C7 9.32843 7.67157 10 8.5 10Z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                            <path d="M21 15L16 10L5 21" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        )}
+                      </div>
+
+                      {/* File Info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-sm truncate">{attachment.name}</div>
+                        <div className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
+                          {attachment.status === 'uploading' && `Uploading... ${Math.round(attachment.progress)}%`}
+                          {attachment.status === 'completed' && formatFileSize(attachment.size)}
+                        </div>
+                        
+                        {/* Progress Bar */}
+                        {attachment.status === 'uploading' && (
+                          <div className="mt-2 h-1 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                            <motion.div
+                              className="h-full"
+                              style={{ backgroundColor: 'var(--accent-primary)' }}
+                              initial={{ width: 0 }}
+                              animate={{ width: `${attachment.progress}%` }}
+                              transition={{ duration: 0.3 }}
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Status Icon or Remove Button */}
+                      {attachment.status === 'completed' && (
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <div className="w-5 h-5 rounded-full flex items-center justify-center" style={{ backgroundColor: 'var(--accent-success)' }}>
+                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <path d="M10 3L4.5 8.5L2 6" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                          </div>
+                          <button
+                            onClick={() => removeAttachment(attachment.id)}
+                            className="p-1 rounded-lg transition"
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                          >
+                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <path d="M10.5 3.5L3.5 10.5M3.5 3.5L10.5 10.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                            </svg>
+                          </button>
+                        </div>
+                      )}
+                      {attachment.status === 'uploading' && (
+                        <div className="flex-shrink-0">
+                          <div className="w-5 h-5 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: 'var(--accent-primary)' }} />
+                        </div>
+                      )}
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+              
               <div className="flex items-center gap-3 p-3 rounded-full border" style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}>
                 <button 
                   className="p-2 rounded-lg transition flex-shrink-0"
@@ -338,50 +587,6 @@ export default function ExampleChat() {
                         </div>
 
                         <div className="space-y-2">
-                          {/* Hidden file inputs */}
-                          <input
-                            ref={pdfInputRef}
-                            type="file"
-                            accept=".pdf"
-                            className="hidden"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                console.log('PDF file selected:', file.name);
-                                // Handle PDF upload here
-                              }
-                              setShowUploadModal(false);
-                            }}
-                          />
-                          <input
-                            ref={csvInputRef}
-                            type="file"
-                            accept=".csv"
-                            className="hidden"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                console.log('CSV file selected:', file.name);
-                                // Handle CSV upload here
-                              }
-                              setShowUploadModal(false);
-                            }}
-                          />
-                          <input
-                            ref={imageInputRef}
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                console.log('Image file selected:', file.name);
-                                // Handle Image upload here
-                              }
-                              setShowUploadModal(false);
-                            }}
-                          />
-
                           {/* Upload PDF Button */}
                           <button 
                             className="w-full p-3 rounded-xl text-left transition flex items-center gap-3"
@@ -502,6 +707,100 @@ export default function ExampleChat() {
             {/* Prompt input at bottom */}
             <div className="p-6">
               <div className="max-w-3xl mx-auto relative">
+                {/* Attachments Display */}
+                {attachments.length > 0 && (
+                  <div className="mb-3 space-y-2">
+                    {attachments.map((attachment) => (
+                      <motion.div
+                        key={attachment.id}
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="flex items-center gap-3 p-3 rounded-xl border"
+                        style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}
+                      >
+                        {/* File Icon */}
+                        <div 
+                          className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
+                          style={{ 
+                            backgroundColor: attachment.type === 'pdf' ? 'var(--accent-primary)' : 
+                                            attachment.type === 'csv' ? 'var(--accent-success)' : 
+                                            'var(--accent-info)' 
+                          }}
+                        >
+                          {attachment.type === 'pdf' && (
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <path d="M14 2H6C5.46957 2 4.96086 2.21071 4.58579 2.58579C4.21071 2.96086 4 3.46957 4 4V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V8L14 2Z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                              <path d="M14 2V8H20" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                          )}
+                          {attachment.type === 'csv' && (
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <path d="M14 2H6C5.46957 2 4.96086 2.21071 4.58579 2.58579C4.21071 2.96086 4 3.46957 4 4V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V8L14 2Z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                              <path d="M14 2V8H20" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                              <path d="M8 13H16M8 17H16" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+                            </svg>
+                          )}
+                          {attachment.type === 'image' && (
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <path d="M19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                              <path d="M8.5 10C9.32843 10 10 9.32843 10 8.5C10 7.67157 9.32843 7 8.5 7C7.67157 7 7 7.67157 7 8.5C7 9.32843 7.67157 10 8.5 10Z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                              <path d="M21 15L16 10L5 21" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                          )}
+                        </div>
+
+                        {/* File Info */}
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-sm truncate">{attachment.name}</div>
+                          <div className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
+                            {attachment.status === 'uploading' && `Uploading... ${Math.round(attachment.progress)}%`}
+                            {attachment.status === 'completed' && formatFileSize(attachment.size)}
+                          </div>
+                          
+                          {/* Progress Bar */}
+                          {attachment.status === 'uploading' && (
+                            <div className="mt-2 h-1 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                              <motion.div
+                                className="h-full"
+                                style={{ backgroundColor: 'var(--accent-primary)' }}
+                                initial={{ width: 0 }}
+                                animate={{ width: `${attachment.progress}%` }}
+                                transition={{ duration: 0.3 }}
+                              />
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Status Icon or Remove Button */}
+                        {attachment.status === 'completed' && (
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <div className="w-5 h-5 rounded-full flex items-center justify-center" style={{ backgroundColor: 'var(--accent-success)' }}>
+                              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M10 3L4.5 8.5L2 6" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                            </div>
+                            <button
+                              onClick={() => removeAttachment(attachment.id)}
+                              className="p-1 rounded-lg transition"
+                              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)'}
+                              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                            >
+                              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M10.5 3.5L3.5 10.5M3.5 3.5L10.5 10.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                              </svg>
+                            </button>
+                          </div>
+                        )}
+                        {attachment.status === 'uploading' && (
+                          <div className="flex-shrink-0">
+                            <div className="w-5 h-5 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: 'var(--accent-primary)' }} />
+                          </div>
+                        )}
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
+                
                 <div className="flex items-center gap-3 p-3 rounded-full border" style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}>
                   <button 
                     className="p-2 rounded-lg transition flex-shrink-0"
