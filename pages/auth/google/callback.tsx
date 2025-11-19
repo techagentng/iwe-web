@@ -35,7 +35,7 @@ const GoogleCallback = () => {
           {
             code,
             client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
-            client_secret: process.env.GOOGLE_CLIENT_SECRET,
+            client_secret: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_SECRET,
             redirect_uri: process.env.NEXT_PUBLIC_GOOGLE_REDIRECT_URL,
             grant_type: 'authorization_code',
           },
