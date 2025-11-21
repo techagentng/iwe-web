@@ -124,11 +124,18 @@ export default function ExampleChat() {
         const completedAttachment = attachments.find(att => att.status === 'completed' && att.file);
         
         if (completedAttachment && completedAttachment.file) {
+          // Get auth token
+          const token = localStorage.getItem('auth_token');
+          if (!token) {
+            throw new Error('No authentication token found');
+          }
+
           // Upload file to backend
           const response = await api.uploadFile(
             completedAttachment.file,
+            token,
             prompt,
-            0, // priority (can be made configurable)
+            1, // priority (1 = normal, can be made configurable)
             undefined // scheduledAt (can be made configurable)
           );
 
