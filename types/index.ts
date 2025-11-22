@@ -8,7 +8,17 @@ export type WebSocketMessage =
   | ErrorMessage
   | RawMessage
   | StreamUpdateMessage
-  | StreamCompleteMessage;
+  | StreamCompleteMessage
+  | {
+      type: 'auth_verified';
+      timestamp: number;
+      sessionId: string;
+    }
+  | {
+      type: 'pong';
+      timestamp: number;
+      serverTime: number;
+    };
 
 export type { 
   JobUpdateMessage, 

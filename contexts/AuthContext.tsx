@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import axios from 'axios';
 import { AuthContextType, AuthState, User, GoogleLoginResponse } from '../types/auth';
 import { setSession, clearSession, getSession, getUserRole, getUserData } from '../utils/auth';
+import { setDevAuthToken, clearDevAuthToken } from '../src/utils/auth-utils';
 
 // Create context with undefined default
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -117,14 +118,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       console.log('👤 Constructed user object:', user);
 
-      // Update session and state
-      setSession(access_token, role_name, user);
-      
+      // Set the session with the received token and user data
+      setSession(
+        responseData.access_token,
+        responseData.role_name,
+        responseData.data
+      );
+
+      // In development, store the token for WebSocket authentication
+      if (process.env.NODE_ENV !== 'production') {
+        setDevAuthToken(responseData.access_token);
+      }
+
+      // Update auth state
       setState({
         isLoggedIn: true,
         isInitialized: true,
-        user: user,
-        role_name: role_name,
+        user: responseData.data,
+        role_name: responseData.role_name,
       });
 
       // Navigate to dashboard
@@ -151,15 +162,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
    * Clears session and redirects to login
    */
   const logout = () => {
+    // Clear session data
     clearSession();
     
+    // Clear development WebSocket token
+    if (process.env.NODE_ENV !== 'production') {
+      clearDevAuthToken();
+    }
+    
+    // Reset auth state
     setState({
       isLoggedIn: false,
       isInitialized: true,
       user: null,
       role_name: null,
     });
-
+    
+    // Redirect to login page
     router.push('/login');
   };
 

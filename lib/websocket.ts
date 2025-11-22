@@ -6,11 +6,38 @@ import {
   RawMessage 
 } from '@/types/index';
 
-// Use different endpoints for browser and React Native
-const isProd = process.env.NODE_ENV === 'production';
+// Determine if we're in production based on the current hostname
+const isProd = typeof window !== 'undefined' && 
+  (window.location.hostname.endsWith('iweapps.com') || 
+   process.env.NODE_ENV === 'production');
+
+// Base WebSocket URL
 const WS_BASE_URL = isProd ? 'wss://api.iweapps.com' : 'ws://localhost:8080';
-const WS_URL = `${WS_BASE_URL}/ws`;
-const WS_AUTH_URL = `${WS_BASE_URL}/ws/auth`;
+
+// Get auth token from localStorage for development
+const getDevAuthToken = (): string | null => {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem('dev_jwt');
+};
+
+// Construct WebSocket URL with proper authentication
+const getWebSocketUrl = (isReactNative: boolean = false): string => {
+  if (isProd) {
+    return isReactNative ? `${WS_BASE_URL}/ws/auth` : `${WS_BASE_URL}/ws`;
+  }
+  
+  // Development mode - use token or fallback to test user
+  const token = getDevAuthToken();
+  if (token) {
+    return `${WS_BASE_URL}/ws?token=${encodeURIComponent(token)}`;
+  }
+  
+  // Fallback to test user in development
+  return `${WS_BASE_URL}/ws?user_id=c0a8012e-0000-4000-8000-000000000001`;
+};
+
+const WS_URL = getWebSocketUrl();
+const WS_AUTH_URL = getWebSocketUrl(true);
 
 interface UseWebSocketOptions {
   onMessage?: (message: WebSocketMessage) => void;
@@ -37,6 +64,10 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
     reconnectInterval = 3000,
     maxReconnectAttempts = 5,
   } = options;
+  
+  const debug = (message: string, data?: any) => {
+    console.log(`[WebSocket] ${message}`, data || '');
+  };
 
   const [isConnected, setIsConnected] = useState(false);
   const [lastMessage, setLastMessage] = useState<WebSocketMessage | null>(null);
@@ -63,15 +94,45 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
         new WebSocket(wsUrl, { headers: { Authorization: `Bearer ${token}` } }) :
         new WebSocket(wsUrl);
 
-      ws.onopen = () => {
-        console.log('✅ WebSocket connected');
+      ws.onopen = (event) => {
+        debug('WebSocket Connected', {
+          url: WS_URL,
+          protocol: ws.protocol,
+          extensions: ws.extensions,
+          timestamp: new Date().toISOString()
+        });
         setIsConnected(true);
-        reconnectAttemptsRef.current = 0;
         onConnect?.();
+        reconnectAttemptsRef.current = 0;
+        
+        // Send a test message to verify connection
+        try {
+          const testMessage = JSON.stringify({ type: 'ping', timestamp: Date.now() });
+          ws.send(testMessage);
+          debug('Sent test ping message');
+        } catch (error) {
+          debug('Error sending test message', error);
+        }
       };
 
       ws.onmessage = (event) => {
         try {
+          const message = JSON.parse(event.data);
+          debug('Received message', {
+            type: message.type,
+            timestamp: new Date().toISOString(),
+            data: message
+          });
+          
+          // Handle test pong response
+          if (message.type === 'pong') {
+            debug('Received pong response', {
+              latency: Date.now() - message.timestamp,
+              serverTime: message.serverTime
+            });
+            return;
+          }
+          
           // Log raw message for debugging
           console.log('📨 Raw WebSocket message:', event.data);
           
@@ -136,9 +197,18 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
         }
       };
 
-      ws.onerror = (error) => {
-        console.error('❌ WebSocket error:', error);
-        onError?.(error);
+      ws.onerror = (event) => {
+        const error = {
+          type: 'WebSocket Error',
+          timestamp: new Date().toISOString(),
+          error: event,
+          readyState: ws.readyState,
+          url: WS_URL
+        };
+        console.error('WebSocket error:', error);
+        debug('WebSocket Error', error);
+        onError?.(event);
+        ws.close();
       };
 
       ws.onclose = () => {
@@ -149,19 +219,38 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
 
         // Attempt to reconnect
         if (reconnectAttemptsRef.current < maxReconnectAttempts) {
-          reconnectAttemptsRef.current++;
-          console.log(
-            `🔄 Reconnecting... (Attempt ${reconnectAttemptsRef.current}/${maxReconnectAttempts})`
+          reconnectAttemptsRef.current += 1;
+          const delay = Math.min(
+            reconnectInterval * Math.pow(2, reconnectAttemptsRef.current - 1),
+            30000 // Max 30 seconds
           );
+          
+          debug(`Reconnecting in ${delay}ms (attempt ${reconnectAttemptsRef.current}/${maxReconnectAttempts})`);
+          
           reconnectTimeoutRef.current = setTimeout(() => {
+            debug(`Attempting to reconnect (${reconnectAttemptsRef.current}/${maxReconnectAttempts})`);
+            
+            // In development, try to get a fresh token if available
+            if (!isProd) {
+              const token = getDevAuthToken();
+              if (token) {
+                debug('Using fresh token for reconnection');
+                const newUrl = `${WS_BASE_URL}/ws?token=${encodeURIComponent(token)}`;
+                if (wsRef.current) {
+                  wsRef.current = new WebSocket(newUrl);
+                  return;
+                }
+              }
+            }
+            
             connect();
-          }, reconnectInterval);
+          }, delay);
         } else {
-          console.error('❌ Max reconnection attempts reached');
+          const error = new Event('max_reconnect_attempts');
+          debug('Max reconnection attempts reached');
+          onError?.(error);
         }
       };
-
-      wsRef.current = ws;
     } catch (error) {
       console.error('Failed to create WebSocket connection:', error);
     }
@@ -177,9 +266,11 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
 
   const reconnect = useCallback(() => {
     if (wsRef.current) {
+      debug('Closing existing connection');
       wsRef.current.close();
     }
-    reconnectAttemptsRef.current = 0;
+
+    debug(`Connecting to WebSocket: ${WS_URL}`);
     connect();
   }, [connect]);
 

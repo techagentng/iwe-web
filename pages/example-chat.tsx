@@ -18,8 +18,14 @@ type Attachment = {
   file?: File; // Store file for actual upload
 };
 
+// WebSocket connection status type
+type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
+
 export default function ExampleChat() {
-  const { user, logout } = useAuth();
+  const { user, logout, isLoggedIn } = useAuth();
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
+  const [lastPing, setLastPing] = useState<number | null>(null);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [messages, setMessages] = useState<Array<{role: 'user' | 'assistant', content: string, jobId?: string}>>([]);
@@ -28,6 +34,16 @@ export default function ExampleChat() {
   const [displayedContent, setDisplayedContent] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  
+  // Connection status indicator
+  const getConnectionStatusColor = () => {
+    switch(connectionStatus) {
+      case 'connected': return 'bg-green-500';
+      case 'connecting': return 'bg-yellow-500';
+      case 'error': return 'bg-red-500';
+      default: return 'bg-gray-500';
+    }
+  };
   const [currentJobId, setCurrentJobId] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   
@@ -43,11 +59,130 @@ export default function ExampleChat() {
   const csvInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
-  // WebSocket connection for real-time updates
-  const { isConnected, lastMessage } = useWebSocket({
-    onMessage: handleWebSocketMessage,
-    onConnect: () => console.log('Connected to server'),
-    onDisconnect: () => console.log('Disconnected from server'),
+  // WebSocket connection
+  const { sendMessage, isConnected } = useWebSocket({
+    onConnect: () => {
+      console.log('🔌 WebSocket connected, verifying authentication...');
+      setConnectionStatus('connected');
+      setConnectionError(null);
+      
+      // Send a verification message to check if we're properly authenticated
+      const verifyAuth = () => {
+        const verifyMessage = {
+          type: 'verify_auth',
+          timestamp: Date.now(),
+          sessionId: user?.id || 'unknown'
+        };
+        sendMessage(verifyMessage);
+        console.log('🔍 Sent auth verification request', verifyMessage);
+      };
+      
+      // Wait a moment before verifying to ensure connection is fully established
+      const verifyTimeout = setTimeout(verifyAuth, 1000);
+      
+      return () => clearTimeout(verifyTimeout);
+    },
+    onDisconnect: () => {
+      console.log('⚠️ WebSocket disconnected');
+      setConnectionStatus('disconnected');
+      setConnectionError('Disconnected from server. Reconnecting...');
+    },
+    onError: (event: Event) => {
+      const errorMessage = event instanceof ErrorEvent ? event.message : 'Connection error';
+      console.error('WebSocket error:', errorMessage, event);
+      setConnectionStatus('error');
+      setConnectionError(`Connection error: ${errorMessage}`);
+    },
+    onMessage: (message) => {
+      console.log('📨 Received WebSocket message:', message);
+      
+      // Handle connection verification response
+      if (message.type === 'auth_verified') {
+        console.log('✅ WebSocket authentication verified:', message);
+        setConnectionStatus('connected');
+        setConnectionError(null);
+        setLastPing(Date.now());
+        return;
+      }
+      
+      // Handle ping-pong for connection monitoring
+      if (message.type === 'pong') {
+        const latency = Date.now() - message.timestamp;
+        console.log(`🏓 Pong received (${latency}ms)`);
+        setLastPing(latency);
+        return;
+      }
+      
+      // Handle different message types
+      if (message.type === 'job_update') {
+        // Update job progress
+        if (message.job_id === currentJobId) {
+          setAttachments(prev => prev.map(att => 
+            att.jobId === message.job_id 
+              ? { ...att, progress: message.progress || 0 }
+              : att
+          ));
+        }
+        return;
+      }
+      
+      // Handle AI response chunks
+      if (message.type === 'ai_chunk') {
+        // Stream AI response chunks
+        if (message.job_id === currentJobId && streamingMessageIndex !== null) {
+          setDisplayedContent(message.partial || message.chunk || '');
+        }
+        return;
+      }
+      
+      // Handle job completion
+      if (message.type === 'job_completed') {
+        // Job finished successfully
+        if (message.job_id === currentJobId) {
+          setIsProcessing(false);
+          setAttachments(prev => prev.map(att => 
+            att.jobId === message.job_id 
+              ? { ...att, status: 'completed', progress: 100 }
+              : att
+          ));
+          
+          // Update message with final AI response
+          if (streamingMessageIndex !== null && message.ai_response) {
+            setMessages(prev => prev.map((msg, idx) => 
+              idx === streamingMessageIndex 
+                ? { ...msg, content: message.ai_response! }
+                : msg
+            ));
+            setStreamingMessageIndex(null);
+          }
+        }
+        return;
+      }
+      
+      // Handle job failure
+      if (message.type === 'job_failed') {
+        // Job failed
+        if (message.job_id === currentJobId) {
+          setIsProcessing(false);
+          setAttachments(prev => prev.map(att => 
+            att.jobId === message.job_id 
+              ? { ...att, status: 'error', progress: 0 }
+              : att
+          ));
+          
+          // Show error message
+          if (streamingMessageIndex !== null) {
+            setMessages(prev => prev.map((msg, idx) => 
+              idx === streamingMessageIndex 
+                ? { ...msg, content: `Error: ${message.error || 'Processing failed'}` }
+                : msg
+            ));
+            setStreamingMessageIndex(null);
+          }
+        }
+        return;
+      }
+    },
   });
 
   // Handle WebSocket messages
