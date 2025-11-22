@@ -1,9 +1,11 @@
 import Link from 'next/link';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api } from '@/lib/api';
 import { useWebSocket } from '@/lib/websocket';
 import { WebSocketMessage, ProcessingJob } from '@/types/index';
+import { useFileUpload } from '../src/hooks/useFileUpload';
+import { useAuth } from '@/contexts/AuthContext';
 
 type Attachment = {
   id: string;
@@ -17,6 +19,8 @@ type Attachment = {
 };
 
 export default function ExampleChat() {
+  const { user, logout } = useAuth();
+  const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [messages, setMessages] = useState<Array<{role: 'user' | 'assistant', content: string, jobId?: string}>>([]);
   const [inputValue, setInputValue] = useState('');
@@ -26,6 +30,14 @@ export default function ExampleChat() {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [currentJobId, setCurrentJobId] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  
+  // Use the file upload hook
+  const { 
+    sendMessage: sendChatMessage, 
+    isUploading, 
+    isSendingPrompt,
+    lastJobId
+  } = useFileUpload();
   
   const pdfInputRef = useRef<HTMLInputElement>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);
@@ -107,7 +119,7 @@ export default function ExampleChat() {
     }
   }
 
-  const handleSendMessage = async () => {
+  const handleSendMessage = useCallback(async () => {
     if (!inputValue.trim() && attachments.length === 0) return;
 
     const prompt = inputValue.trim() || 'Analyze this document';
@@ -119,70 +131,69 @@ export default function ExampleChat() {
     setIsProcessing(true);
 
     try {
-      // If there are attachments, upload them
-      if (attachments.length > 0) {
-        const completedAttachment = attachments.find(att => att.status === 'completed' && att.file);
+      // Get the first completed attachment if it exists
+      const completedAttachment = attachments.find(att => att.status === 'completed' && att.file);
+      
+      if (completedAttachment?.file) {
+        // Use the file upload hook to handle the upload
+        const jobId = await sendChatMessage(completedAttachment.file, prompt);
         
-        if (completedAttachment && completedAttachment.file) {
-          // Get auth token
-          const token = localStorage.getItem('auth_token');
-          if (!token) {
-            throw new Error('No authentication token found');
-          }
+        // Store job ID
+        setCurrentJobId(jobId);
+        
+        // Update attachment with job ID
+        setAttachments(prev => prev.map(att => 
+          att.id === completedAttachment.id 
+            ? { ...att, jobId, progress: 0 }
+            : att
+        ));
 
-          // Upload file to backend
-          const response = await api.uploadFile(
-            completedAttachment.file,
-            token,
-            prompt,
-            1, // priority (1 = normal, can be made configurable)
-            undefined // scheduledAt (can be made configurable)
-          );
-
-          console.log('✅ Upload response:', response);
-
-          // Store job ID
-          setCurrentJobId(response.data.job_id);
+        // Add placeholder AI message that will be streamed
+        const aiMessageIndex = newMessages.length;
+        setMessages(prev => [...prev, { 
+          role: 'assistant', 
+          content: '',
+          jobId
+        }]);
+        
+        // Start streaming effect
+        setStreamingMessageIndex(aiMessageIndex);
+        setDisplayedContent('Processing...');
+      } else if (currentJobId) {
+        // No new file but we have an existing job, just send the prompt
+        try {
+          await sendChatMessage(null, prompt);
           
-          // Update attachment with job ID
-          setAttachments(prev => prev.map(att => 
-            att.id === completedAttachment.id 
-              ? { ...att, jobId: response.data.job_id, progress: response.data.progress }
-              : att
-          ));
-
-          // Add placeholder AI message that will be streamed
-          const aiMessageIndex = newMessages.length;
+          // Add a simple response for the UI
           setMessages(prev => [...prev, { 
             role: 'assistant', 
-            content: '',
-            jobId: response.data.job_id
+            content: 'Processing your follow-up question...',
+            jobId: currentJobId
           }]);
-          
-          // Start streaming effect
-          setStreamingMessageIndex(aiMessageIndex);
-          setDisplayedContent('Processing...');
+        } catch (error) {
+          console.error('Error sending prompt:', error);
+          setMessages(prev => [...prev, { 
+            role: 'assistant', 
+            content: `Error: ${error instanceof Error ? error.message : 'Failed to send prompt'}`
+          }]);
         }
       } else {
-        // No attachments - just simulate response (or handle text-only queries)
-        setTimeout(() => {
-          const aiResponse = 'Please upload a document to analyze.';
-          setMessages(prev => [...prev, { 
-            role: 'assistant', 
-            content: aiResponse
-          }]);
-          setIsProcessing(false);
-        }, 500);
+        // No attachments and no existing job
+        setMessages(prev => [...prev, { 
+          role: 'assistant', 
+          content: 'Please upload a document first to analyze it.'
+        }]);
       }
     } catch (error) {
-      console.error('Upload error:', error);
+      console.error('Error:', error);
       setMessages(prev => [...prev, { 
         role: 'assistant', 
-        content: `Error: ${error instanceof Error ? error.message : 'Upload failed'}` 
+        content: `Error: ${error instanceof Error ? error.message : 'Something went wrong'}` 
       }]);
+    } finally {
       setIsProcessing(false);
     }
-  };
+  }, [inputValue, attachments, messages, sendChatMessage, currentJobId]);
 
   // Streaming effect for AI responses
   useEffect(() => {
@@ -234,19 +245,74 @@ export default function ExampleChat() {
   };
 
   // File upload handler
-  const handleFileSelect = (file: File, type: 'pdf' | 'csv' | 'image') => {
+  const handleFileSelect = async (file: File, type: 'pdf' | 'csv' | 'image') => {
+    const attachmentId = Math.random().toString(36).substr(2, 9);
+    
+    // Create a new attachment in uploading state
     const newAttachment: Attachment = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: attachmentId,
       name: file.name,
       type,
       size: file.size,
-      status: 'completed', // Mark as completed immediately (will upload on send)
-      progress: 100,
-      file, // Store the file for later upload
+      status: 'uploading',
+      progress: 0,
+      file,
     };
     
     setAttachments(prev => [...prev, newAttachment]);
     setShowUploadModal(false);
+    
+    try {
+      // Add a user message showing the file is being processed
+      const userMessage = `Uploading ${file.name}...`;
+      setMessages(prev => [...prev, { role: 'user' as const, content: userMessage }]);
+      
+      // Start the upload process
+      const prompt = 'Analyze this document';
+      const jobId = await sendChatMessage(file, prompt);
+      
+      // Update the attachment with the job ID and mark as completed
+      setAttachments(prev => 
+        prev.map(att => 
+          att.id === attachmentId 
+            ? { ...att, jobId, status: 'completed', progress: 100 }
+            : att
+        )
+      );
+      
+      // Add a placeholder AI message that will be updated by the WebSocket
+      setMessages(prev => [
+        ...prev, 
+        { 
+          role: 'assistant' as const, 
+          content: '',
+          jobId
+        }
+      ]);
+      
+      setCurrentJobId(jobId);
+      
+    } catch (error) {
+      console.error('Upload error:', error);
+      
+      // Update the attachment to show error state
+      setAttachments(prev => 
+        prev.map(att => 
+          att.id === attachmentId 
+            ? { ...att, status: 'error' }
+            : att
+        )
+      );
+      
+      // Add an error message
+      setMessages(prev => [
+        ...prev, 
+        { 
+          role: 'assistant' as const, 
+          content: `Error: ${error instanceof Error ? error.message : 'Failed to upload file'}`
+        }
+      ]);
+    }
   };
   return (
     <div className="flex h-screen" style={{ backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
@@ -465,16 +531,52 @@ export default function ExampleChat() {
         </div>
 
         {/* User profile */}
-        <div className="mt-auto pt-4" style={{ borderTop: '1px solid var(--border-color)' }}>
-          <div className="flex items-center gap-2 text-sm p-2 rounded-md transition cursor-pointer"
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'}
-            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+        <div className="mt-auto pt-4 relative" style={{ borderTop: '1px solid var(--border-color)' }}>
+          <div 
+            className="flex items-center gap-2 text-sm p-2 rounded-md transition cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+            onClick={() => setShowProfileDropdown(!showProfileDropdown)}
           >
             <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ backgroundColor: 'var(--accent-primary)' }}>
-              <span style={{ color: 'white', fontSize: '12px' }}>NN</span>
+              <span className="text-white text-xs">
+                {user?.fullname?.split(' ').map((n: string) => n[0]).join('').toUpperCase() || 'U'}
+              </span>
             </div>
-            <span>Nnah Nnamdi</span>
+            <span className="truncate max-w-[120px]">{user?.fullname || 'User'}</span>
+            <svg 
+              className={`w-4 h-4 transition-transform ${showProfileDropdown ? 'rotate-180' : ''}`} 
+              fill="none" 
+              stroke="currentColor" 
+              viewBox="0 0 24 24" 
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
           </div>
+          
+          {/* Dropdown menu */}
+          {showProfileDropdown && (
+            <div 
+              className="absolute bottom-full left-0 right-0 mb-2 py-1 bg-white dark:bg-gray-800 rounded-md shadow-lg z-50 border border-gray-200 dark:border-gray-700"
+              onMouseLeave={() => setShowProfileDropdown(false)}
+            >
+              <div className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 border-b border-gray-100 dark:border-gray-700">
+                <div className="font-medium">{user?.fullname || 'User'}</div>
+                <div className="text-xs text-gray-500 truncate">{user?.email || ''}</div>
+              </div>
+              <button
+                onClick={() => {
+                  // Use the logout function from auth context
+                  if (typeof window !== 'undefined') {
+                    logout();
+                    window.location.href = '/login';
+                  }
+                }}
+                className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                Sign out
+              </button>
+            </div>
+          )}
         </div>
       </aside>
 
