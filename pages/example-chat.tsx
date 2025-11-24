@@ -161,11 +161,12 @@ export default function ExampleChat() {
       
       // Handle job failure
       if (message.type === 'job_failed') {
-        // Job failed
-        if (message.job_id === currentJobId) {
+        // Job failed - support both job_id and jobId for backward compatibility
+        const jobId = 'jobId' in message ? message.jobId : (message as any).job_id;
+        if (jobId === currentJobId) {
           setIsProcessing(false);
           setAttachments(prev => prev.map(att => 
-            att.jobId === message.job_id 
+            att.jobId === jobId 
               ? { ...att, status: 'error', progress: 0 }
               : att
           ));

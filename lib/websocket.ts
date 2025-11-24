@@ -11,9 +11,29 @@ const isProd = typeof window !== 'undefined' &&
   (window.location.hostname.endsWith('iweapps.com') || 
    process.env.NODE_ENV === 'production');
 
-// Base WebSocket URL - use environment variable if available, otherwise fallback
-const WS_BASE_URL = process.env.NEXT_PUBLIC_WS_URL || 
-  (isProd ? 'wss://api.iweapps.com' : 'ws://localhost:8080');
+// Base URL without the /ws suffix to prevent duplication
+const getBaseUrl = (): string => {
+  // If NEXT_PUBLIC_WS_URL is set, use it as-is
+  if (process.env.NEXT_PUBLIC_WS_URL) {
+    const url = process.env.NEXT_PUBLIC_WS_URL.replace(/\/+$/, ''); // Remove trailing slashes
+    console.log('🌐 Using NEXT_PUBLIC_WS_URL:', url);
+    return url;
+  }
+  
+  // In development, use WebSocket protocol matching the current page's protocol
+  if (!isProd) {
+    const protocol = typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = typeof window !== 'undefined' ? window.location.host : 'localhost:8080';
+    const url = `${protocol}//${host}`;
+    console.log('🌐 Using development WebSocket URL:', url);
+    return url;
+  }
+  
+  // Production fallback
+  return 'wss://api.iweapps.com';
+};
+
+const WS_BASE_URL = getBaseUrl();
 
 // Debug logging for WebSocket configuration
 console.log('🌐 WebSocket Configuration:', {
@@ -21,7 +41,8 @@ console.log('🌐 WebSocket Configuration:', {
   WS_BASE_URL,
   hostname: typeof window !== 'undefined' ? window.location.hostname : 'server',
   protocol: typeof window !== 'undefined' ? window.location.protocol : 'server',
-  env: process.env.NODE_ENV
+  env: process.env.NODE_ENV,
+  NEXT_PUBLIC_WS_URL: process.env.NEXT_PUBLIC_WS_URL
 });
 
 // Get auth token from localStorage for development
@@ -38,27 +59,32 @@ const getDevAuthToken = (): string | null => {
 
 // Construct WebSocket URL with proper authentication
 const getWebSocketUrl = (isReactNative: boolean = false): string => {
+  // For React Native, use the auth endpoint
   if (isReactNative) {
-    return `${WS_BASE_URL}/ws/auth`;
+    const url = `${WS_BASE_URL}/ws/auth`;
+    console.log('📡 Using React Native WebSocket URL:', url);
+    return url;
   }
+
+  let url: string;
   
   if (isProd) {
     // In production, use cookie-based auth (HttpOnly cookie)
-    console.log('🔒 Using cookie-based WebSocket authentication');
-    return `${WS_BASE_URL}/ws`;
+    url = `${WS_BASE_URL}${WS_BASE_URL.endsWith('/ws') ? '' : '/ws'}`;
+    console.log('🔒 Using production WebSocket URL with cookie auth:', url);
+  } else {
+    // In development, use token-based auth
+    const token = getDevAuthToken();
+    // For web, use the standard WebSocket endpoint
+    const baseUrl = WS_BASE_URL.startsWith('ws') 
+      ? WS_BASE_URL.replace(/\/+$/, '')
+      : `ws://${WS_BASE_URL.replace(/^https?:\/\//, '').replace(/\/+$/, '')}`;
+    
+    url = token ? `${baseUrl}/ws?token=${token}` : `${baseUrl}/ws`;
+    console.log('🌍 Using development WebSocket URL:', url);
   }
   
-  // In development, prefer token-based auth if available
-  const token = getDevAuthToken();
-  if (token) {
-    console.log('🔑 Using dev JWT token for WebSocket connection');
-    return `${WS_BASE_URL}/ws?token=${encodeURIComponent(token)}`;
-  }
-  
-  // Fallback to public connection with test user ID
-  const testUserId = 'c0a8012e-0000-4000-8000-000000000001';
-  console.log('👤 Using public WebSocket connection with test user ID');
-  return `${WS_BASE_URL}/ws?user_id=${testUserId}`;
+  return url;
 };
 
 const WS_URL = getWebSocketUrl();

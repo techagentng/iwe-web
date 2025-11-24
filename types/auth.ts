@@ -18,9 +18,14 @@ export interface AuthState {
 
 // Google login response from backend
 export interface GoogleLoginResponse {
-  access_token: string;
+  id: number;
+  fullname: string;
+  username: string;
+  telephone: string;
+  email: string;
   role_name: string;
-  data: User;
+  access_token: string;
+  refresh_token: string;
 }
 
 // Auth context type

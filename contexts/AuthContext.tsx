@@ -120,15 +120,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       const access_token = responseData.access_token;
       const role_name = responseData.role_name || 'User';
-      const backendUserData: any = responseData.data || {};
-
-      // Construct user object with safe fallbacks
+      
+      // Construct user object with safe fallbacks using response data
       const user: User = {
-        id: backendUserData.id || email, // Use email as fallback ID
-        email: email,
-        fullname: backendUserData.fullname || fullname,
-        username: backendUserData.username || email.split('@')[0],
-        telephone: backendUserData.telephone || telephone,
+        id: responseData.id?.toString() || email,
+        email: responseData.email || email,
+        fullname: responseData.fullname || fullname,
+        username: responseData.username || email.split('@')[0],
+        telephone: responseData.telephone || telephone,
         role_name: role_name,
       };
 
@@ -136,39 +135,41 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       // Set the session with the received token and user data
       setSession(
-        responseData.access_token,
-        responseData.role_name,
-        responseData.data
+        access_token,
+        role_name,
+        user  // Pass the constructed user object
       );
+
+      // Update the auth state
+      setState({
+        isLoggedIn: true,
+        isInitialized: true,
+        user: user,
+        role_name: role_name,
+      });
+
+      // Set session with the user data
+      setSession(access_token, role_name, user);
 
       // Store the auth state in localStorage for WebSocket access
       if (typeof window !== 'undefined') {
         try {
           const authState = {
-            token: responseData.access_token,
-            user: responseData.data,
-            role: responseData.role_name,
+            token: access_token,
+            user: user,  // Use the constructed user object
+            role: role_name,
             timestamp: Date.now()
           };
           localStorage.setItem('auth_state', JSON.stringify(authState));
-          console.log('🔐 Stored auth state for WebSocket');
-        } catch (e) {
-          console.warn('Failed to store auth state in localStorage', e);
+          
+          // Also set the dev auth token for development
+          if (process.env.NODE_ENV === 'development') {
+            setDevAuthToken(access_token);
+          }
+        } catch (error) {
+          console.error('Error storing auth state:', error);
         }
       }
-
-      // In development, also store the token separately for backward compatibility
-      if (process.env.NODE_ENV !== 'production') {
-        setDevAuthToken(responseData.access_token);
-      }
-
-      // Update auth state
-      setState({
-        isLoggedIn: true,
-        isInitialized: true,
-        user: responseData.data,
-        role_name: responseData.role_name,
-      });
 
       // Navigate to dashboard
       router.push('/example-chat');
