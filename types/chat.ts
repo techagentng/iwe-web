@@ -11,13 +11,7 @@ export interface ChatMessage {
   error?: string;
 }
 
-export interface JobStatus {
-  jobId: string;
-  status: 'processing' | 'completed' | 'error';
-  progress?: number;
-  message?: string;
-  timestamp: number;
-}
+// JobStatus is imported from '@/types/index'
 
 export type WebSocketMessageType = 
   | 'user_message' 
