@@ -8,9 +8,28 @@ import { ArrowRight, CheckCircle, Zap, BarChart3, Shield, Users, TrendingUp, Che
 import Link from 'next/link';
 import { useTranslation } from '../hooks/useTranslation';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
+import LoginModal from '../components/LoginModal';
+import { useAuth } from '../contexts/AuthContext';
+import { useRouter } from 'next/router';
 
 export default function Landing() {
   const { t } = useTranslation();
+  const router = useRouter();
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+
+  const handleSuccess = (data: any) => {
+    setSubmitSuccess(true);
+    console.log('Form submitted successfully:', data);
+    // You could show a success message or redirect here
+  };
+
+  const handleError = (error: string) => {
+    setSubmitError(error);
+    console.error('Form submission error:', error);
+  };
+
   return (
     <div className="min-h-screen relative overflow-hidden">
       <Navbar />
@@ -69,16 +88,17 @@ export default function Landing() {
 
           <AnimatedWrapper variants={fadeInUp} delay={0.3}>
             <div className="flex flex-col sm:flex-row gap-3 md:gap-4 justify-center items-center px-2">
-              <Link href="/signup" className="w-full sm:w-auto">
-                <motion.button
-                  className="btn-primary text-base md:text-lg px-6 md:px-8 py-3 md:py-4 flex items-center justify-center gap-2 w-full sm:w-auto"
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  {t('landing.getStarted')}
-                  <ArrowRight className="w-4 md:w-5 h-4 md:h-5" />
-                </motion.button>
-              </Link>
+              <button
+                onClick={() => {
+                  setSubmitError('');
+                  setSubmitSuccess(false);
+                  setIsLoginModalOpen(true);
+                }}
+                className="btn-primary text-base md:text-lg px-6 md:px-8 py-3 md:py-4 flex items-center justify-center gap-2 w-full sm:w-auto"
+              >
+                {t('landing.getStarted')}
+                <ArrowRight className="w-4 md:w-5 h-4 md:h-5" />
+              </button>
               <Link href="/theme-showcase" className="w-full sm:w-auto">
                 <motion.button
                   className="btn-secondary text-base md:text-lg px-6 md:px-8 py-3 md:py-4 w-full sm:w-auto"
@@ -90,6 +110,17 @@ export default function Landing() {
               </Link>
             </div>
           </AnimatedWrapper>
+
+          <LoginModal
+            isOpen={isLoginModalOpen}
+            onClose={() => {
+              setIsLoginModalOpen(false);
+              setSubmitError('');
+              setSubmitSuccess(false);
+            }}
+            onSuccess={handleSuccess}
+            onError={handleError}
+          />
         </div>
       </section>
 
