@@ -434,13 +434,13 @@ export const useChat = () => {
       const response = await api.uploadFile(file, token);
       
       console.log('📥 [useChat] File upload response:', {
-        success: response.success,
-        jobId: response.data?.job_id,
+        success: true,
+        fileId: response.data?.file_id,
         data: response.data
       });
       
-      if (response.success && response.data?.job_id) {
-        // Update attachment with job ID and mark as completed
+      if (response.data?.file_id) {
+        // Update attachment with file ID and mark as completed
         setAttachments(prev =>
           prev.map(att => 
             att.id === attachmentId 
@@ -448,15 +448,15 @@ export const useChat = () => {
                   ...att, 
                   status: 'completed', 
                   progress: 100, 
-                  jobId: response.data.job_id 
+                  jobId: response.data.file_id // Using file_id as jobId for backward compatibility
                 } 
               : att
           )
         );
         
-        return response.data.job_id;
+        return response.data.file_id;
       } else {
-        throw new Error(response.data?.message || 'Upload failed');
+        throw new Error(response.message || 'Upload failed');
       }
     } catch (error) {
       // Update attachment with error
