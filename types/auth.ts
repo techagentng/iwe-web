@@ -6,6 +6,7 @@ export interface User {
   username?: string;
   telephone?: string;
   role_name: string;
+  token?: string; // JWT token for authentication
 }
 
 // Authentication state

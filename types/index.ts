@@ -82,6 +82,14 @@ export interface StreamCompleteMessage extends BaseMessage {
   message?: string;
 }
 
+// Auth response message
+export interface AuthResponseMessage extends BaseMessage {
+  type: 'auth_response';
+  authenticated: boolean;
+  error?: string;
+  timestamp: number;
+}
+
 // WebSocket message type
 export type WebSocketMessage = 
   | JobUpdateMessage
@@ -93,6 +101,7 @@ export type WebSocketMessage =
   | RawMessage
   | StreamUpdateMessage
   | StreamCompleteMessage
+  | AuthResponseMessage
   | {
       type: 'auth_verified' | 'pong' | 'user_message' | 'assistant_message' | 'stream_chunk' | 'job_update' | 'ack' | 'assistant_typing' | 'file_uploaded' | 'cancel';
       messageId?: string;

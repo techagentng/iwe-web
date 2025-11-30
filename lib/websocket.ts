@@ -58,37 +58,30 @@ const getDevAuthToken = (): string | null => {
 };
 
 // Construct WebSocket URL with proper authentication
-const getWebSocketUrl = (isReactNative: boolean = false): string => {
-  // For React Native, use the auth endpoint
-  if (isReactNative) {
-    const url = `${WS_BASE_URL}/ws/auth`;
-    console.log('📡 Using React Native WebSocket URL:', url);
-    return url;
-  }
-
-  let url: string;
+function getWebSocketUrl(isReactNative: boolean = false, authToken?: string): string {
+  let baseUrl = WS_BASE_URL;
+  const wsProtocol = baseUrl.startsWith('https') ? 'wss://' : 'ws://';
+  const wsUrl = baseUrl.replace(/^https?:\/\//, '');
   
-  if (isProd) {
-    // In production, use cookie-based auth (HttpOnly cookie)
-    url = `${WS_BASE_URL}${WS_BASE_URL.endsWith('/ws') ? '' : '/ws'}`;
-    console.log('🔒 Using production WebSocket URL with cookie auth:', url);
-  } else {
-    // In development, use token-based auth
-    const token = getDevAuthToken();
-    // For web, use the standard WebSocket endpoint
-    const baseUrl = WS_BASE_URL.startsWith('ws') 
-      ? WS_BASE_URL.replace(/\/+$/, '')
-      : `ws://${WS_BASE_URL.replace(/^https?:\/\//, '').replace(/\/+$/, '')}`;
-    
-    url = token ? `${baseUrl}/ws?token=${token}` : `${baseUrl}/ws`;
-    console.log('🌍 Using development WebSocket URL:', url);
+  // Construct the WebSocket URL
+  let url = `${wsProtocol}${wsUrl}`;
+  
+  // Ensure /ws endpoint
+  if (!url.endsWith('/ws')) {
+    url = url.endsWith('/') ? `${url}ws` : `${url}/ws`;
   }
   
+  // Add token to URL if provided
+  if (authToken) {
+    const separator = url.includes('?') ? '&' : '?';
+    url += `${separator}token=${encodeURIComponent(authToken)}`;
+  }
+  
+  console.log('🌐 WebSocket URL:', url);
   return url;
-};
+}
 
 const WS_URL = getWebSocketUrl();
-const WS_AUTH_URL = getWebSocketUrl(true);
 
 interface UseWebSocketOptions {
   onMessage?: (message: WebSocketMessage) => void;
@@ -97,6 +90,7 @@ interface UseWebSocketOptions {
   onError?: (error: Event) => void;
   reconnectInterval?: number;
   maxReconnectAttempts?: number;
+  authToken?: string;
 }
 
 interface UseWebSocketReturn {
@@ -112,8 +106,9 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
     onConnect,
     onDisconnect,
     onError,
-    reconnectInterval = 3000,
+    reconnectInterval = 5000,
     maxReconnectAttempts = 5,
+    authToken
   } = options;
   
   const debug = (message: string, data?: any) => {
@@ -129,19 +124,9 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
 
   const connect = useCallback(() => {
     try {
-      // Get the auth token from cookies (will be sent automatically by the browser)
-      const token = typeof window !== 'undefined' ? 
-        document.cookie.split('; ').find(row => row.startsWith('auth_token='))?.split('=')[1] : null;
-      
-      // For React Native, we'll use the auth endpoint with token in headers
-      const isReactNative = typeof navigator !== 'undefined' && 
-        navigator.product === 'ReactNative';
-      
-      const wsUrl = WS_URL;
+      const wsUrl = getWebSocketUrl(false, authToken);
       console.log('🔌 Connecting to WebSocket:', wsUrl);
       
-      // In production, we rely on cookies for authentication
-      // The browser will automatically include the HttpOnly cookie
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
       
@@ -168,106 +153,46 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
         });
       });
 
-      ws.onopen = (event) => {
-        debug('WebSocket Connected', {
-          url: WS_URL,
-          protocol: ws.protocol,
-          extensions: ws.extensions,
-          timestamp: new Date().toISOString()
-        });
+      wsRef.current.onopen = () => {
+        console.log('WebSocket connected, authenticating...');
         setIsConnected(true);
-        onConnect?.();
         reconnectAttemptsRef.current = 0;
         
-        // Send a test message to verify connection
-        try {
-          const testMessage = JSON.stringify({ type: 'ping', timestamp: Date.now() });
-          ws.send(testMessage);
-          debug('Sent test ping message');
-        } catch (error) {
-          debug('Error sending test message', error);
+        // If we have an auth token, send an auth message
+        if (authToken) {
+          const authMessage = {
+            type: 'auth',
+            token: authToken,
+            timestamp: new Date().toISOString()
+          };
+          console.log('Sending auth message:', authMessage);
+          wsRef.current?.send(JSON.stringify(authMessage));
+        } else if (onConnect) {
+          onConnect();
         }
       };
 
-      ws.onmessage = (event) => {
+      wsRef.current.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data);
-          debug('Received message', {
-            type: message.type,
-            timestamp: new Date().toISOString(),
-            data: message
-          });
+          console.log('Received WebSocket message:', message);
           
-          // Handle test pong response
-          if (message.type === 'pong') {
-            debug('Received pong response', {
-              latency: Date.now() - message.timestamp,
-              serverTime: message.serverTime
-            });
+          // Handle auth response
+          if (message.type === 'auth_response') {
+            if (message.authenticated) {
+              console.log('WebSocket authentication successful');
+              if (onConnect) onConnect();
+            } else {
+              console.error('WebSocket authentication failed:', message.error);
+              wsRef.current?.close(4001, 'Authentication failed');
+            }
             return;
           }
           
-          // Log raw message for debugging
-          console.log('📨 Raw WebSocket message:', event.data);
-          
-          // Try to parse as JSON, fallback to raw text
-          try {
-            const rawData = typeof event.data === 'string' ? event.data : '';
-            const message = JSON.parse(rawData) as WebSocketMessage;
-            
-            // Handle different message types
-            setLastMessage(message);
-            
-            // Process based on message type
-            switch (message.type) {
-              case 'ai_chunk':
-                // Handle streaming chunks
-                messageBufferRef.current += message.chunk || '';
-                onMessage?.({
-                  type: 'stream_update',
-                  data: messageBufferRef.current,
-                  done: false,
-                  timestamp: new Date().toISOString()
-                } as StreamUpdateMessage);
-                break;
-                
-              case 'job_completed':
-                // Handle job completion
-                onMessage?.({
-                  type: 'stream_complete',
-                  data: messageBufferRef.current,
-                  done: true,
-                  timestamp: new Date().toISOString()
-                } as StreamCompleteMessage);
-                messageBufferRef.current = ''; // Reset buffer
-                onMessage?.(message); // Also forward the original message
-                break;
-                
-              case 'job_update':
-                // Forward job updates
-                onMessage?.(message);
-                break;
-                
-              case 'error':
-                console.error('WebSocket error:', message.error);
-                onMessage?.(message);
-                break;
-                
-              default:
-                console.log('Unhandled message type:', message.type, message);
-                onMessage?.(message);
-            }
-          } catch (parseError) {
-            // Handle non-JSON messages or parse errors
-            console.log('Non-JSON WebSocket message:', event.data);
-            onMessage?.({
-              type: 'raw',
-              data: event.data,
-              timestamp: new Date().toISOString()
-            } as RawMessage);
-          }
+          setLastMessage(message);
+          if (onMessage) onMessage(message);
         } catch (error) {
-          console.error('Error handling WebSocket message:', error);
+          console.error('Error parsing WebSocket message:', error, event.data);
         }
       };
 
@@ -277,7 +202,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
           timestamp: new Date().toISOString(),
           error: event,
           readyState: ws.readyState,
-          url: WS_URL
+          url: wsUrl
         };
         console.error('WebSocket error:', error);
         debug('WebSocket Error', error);
@@ -303,20 +228,6 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
           
           reconnectTimeoutRef.current = setTimeout(() => {
             debug(`Attempting to reconnect (${reconnectAttemptsRef.current}/${maxReconnectAttempts})`);
-            
-            // In development, try to get a fresh token if available
-            if (!isProd) {
-              const token = getDevAuthToken();
-              if (token) {
-                debug('Using fresh token for reconnection');
-                const newUrl = `${WS_BASE_URL}/ws?token=${encodeURIComponent(token)}`;
-                if (wsRef.current) {
-                  wsRef.current = new WebSocket(newUrl);
-                  return;
-                }
-              }
-            }
-            
             connect();
           }, delay);
         } else {
@@ -328,7 +239,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
     } catch (error) {
       console.error('Failed to create WebSocket connection:', error);
     }
-  }, [onMessage, onConnect, onDisconnect, onError, reconnectInterval, maxReconnectAttempts]);
+  }, [onMessage, onConnect, onDisconnect, onError, reconnectInterval, maxReconnectAttempts, authToken]);
 
   const sendMessage = useCallback((message: any) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {

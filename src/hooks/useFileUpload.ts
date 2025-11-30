@@ -1,133 +1,141 @@
 import { useCallback, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from '@/lib/api';
-import { UploadResponse, ProcessingJob, JobsListResponse } from '@/types';
+import { api, V1UploadResponse, AIAnalysisResponse } from '@/lib/api';
+import { JobsListResponse } from '@/types';
 
 interface FileUploadState {
   file: File | null;
-  jobId: string | null;
+  fileId: string | null;
+  status: 'idle' | 'uploading' | 'analyzing' | 'completed' | 'error';
+  error?: string;
 }
+
 
 export const useFileUpload = () => {
   const queryClient = useQueryClient();
-  const [fileState, setFileState] = useState<FileUploadState>({ file: null, jobId: null });
-  const lastFileRef = useRef<FileUploadState>({ file: null, jobId: null });
+  const [fileState, setFileState] = useState<FileUploadState>({ 
+    file: null, 
+    fileId: null, 
+    status: 'idle' 
+  });
+  const [analysisResult, setAnalysisResult] = useState<string | null>(null);
+  const lastFileRef = useRef<{ file: File | null; fileId: string | null }>({ 
+    file: null, 
+    fileId: null 
+  });
 
   // Mutation for uploading a file
   const uploadFileMutation = useMutation({
-    mutationFn: async ({ 
-      file, 
-      prompt, 
-      priority = 1 
-    }: { 
-      file: File; 
-      prompt?: string; 
-      priority?: number; 
-    }): Promise<UploadResponse> => {
+    mutationFn: async (file: File): Promise<V1UploadResponse> => {
       const token = localStorage.getItem('auth_token');
       if (!token) {
         throw new Error('No authentication token found');
       }
-
-      const response = await api.uploadFile(file, token, prompt, priority);
-      setFileState({ file, jobId: response.data.job_id });
-      return response;
+      setFileState(prev => ({ ...prev, status: 'uploading' }));
+      return api.uploadFile(file, token);
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['jobs'] });
-      queryClient.setQueryData(['file', data.data.job_id], data);
+      setFileState(prev => ({
+        ...prev,
+        fileId: data.data.file_id,
+        status: 'analyzing'
+      }));
+      lastFileRef.current = { 
+        file: fileState.file, 
+        fileId: data.data.file_id 
+      };
+      queryClient.invalidateQueries({ queryKey: ['files'] });
     },
+    onError: (error) => {
+      setFileState(prev => ({
+        ...prev,
+        status: 'error',
+        error: error instanceof Error ? error.message : 'Upload failed'
+      }));
+    }
   });
 
-  // Send prompt to an existing job
-  const sendPromptMutation = useMutation({
-    mutationFn: async ({ 
-      jobId, 
-      prompt 
-    }: { 
-      jobId: string; 
-      prompt: string; 
-    }) => {
+  // Mutation for analyzing a document
+  const analyzeDocumentMutation = useMutation({
+    mutationFn: async ({
+      fileId,
+      query = 'Analyze this document'
+    }: {
+      fileId: string;
+      query?: string;
+    }): Promise<AIAnalysisResponse> => {
       const token = localStorage.getItem('auth_token');
       if (!token) {
         throw new Error('No authentication token found');
       }
-      // For now, we'll just return a mock response
-      // You'll need to implement the actual API call in your API client
-      return { success: true, message: 'Prompt sent successfully' };
+      return api.analyzeDocument(fileId, query, token);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['jobs'] });
+    onSuccess: (data) => {
+      setAnalysisResult(data.response);
+      setFileState(prev => ({
+        ...prev,
+        status: 'completed'
+      }));
     },
+    onError: (error) => {
+      setFileState(prev => ({
+        ...prev,
+        status: 'error',
+        error: error instanceof Error ? error.message : 'Analysis failed'
+      }));
+    }
   });
 
-  // Combined function to handle both new uploads and prompts
-  const sendMessage = useCallback(async (file: File | null, prompt: string) => {
-    if (file) {
-      // If there's a new file, upload it
-      const response = await uploadFileMutation.mutateAsync({ file, prompt });
-      return response.data.job_id;
-    } else if (fileState.jobId) {
-      // If no file but we have a previous upload, just send the prompt
-      await sendPromptMutation.mutateAsync({ 
-        jobId: fileState.jobId, 
-        prompt 
+  // Combined function to handle both upload and analysis
+  const uploadAndAnalyze = useCallback(async (file: File, prompt: string) => {
+    try {
+      // Step 1: Upload the file
+      const uploadResponse = await uploadFileMutation.mutateAsync(file);
+      const fileId = uploadResponse.data.file_id;
+      
+      // Step 2: Start analysis
+      const analysisResponse = await analyzeDocumentMutation.mutateAsync({
+        fileId,
+        query: prompt
       });
-      return fileState.jobId;
-    } else {
-      throw new Error('No file has been uploaded yet');
+      
+      return {
+        fileId,
+        analysis: analysisResponse.response
+      };
+    } catch (error) {
+      console.error('Upload and analysis failed:', error);
+      throw error;
     }
-  }, [fileState.jobId]);
+  }, []);
 
-  // Query to get job status
-  const useJobStatus = (jobId: string | undefined) => {
-    return useQuery<ProcessingJob, Error>({
-      queryKey: ['job', jobId],
-      queryFn: async (): Promise<ProcessingJob> => {
-        if (!jobId) throw new Error('No job ID provided');
-        const response = await api.getJobStatus(jobId);
-        return response.data;
-      },
-      enabled: !!jobId,
-      refetchInterval: (query) => {
-        const jobData = query.state.data;
-        return jobData?.status === 'processing' ? 1000 : false;
-      },
-    });
-  };
-
-  // Query to get all jobs
-  const useJobs = () => {
-    return useQuery<JobsListResponse, Error, ProcessingJob[]>({
-      queryKey: ['jobs'],
-      queryFn: async (): Promise<JobsListResponse> => {
-        const token = localStorage.getItem('auth_token');
-        if (!token) {
-          throw new Error('No authentication token found');
-        }
-        return await api.getJobs(token);
-      },
-      select: (data) => data.data.jobs,
-      refetchInterval: 5000,
-    });
-  };
 
   return {
-    // Upload and prompt methods
-    sendMessage,
-    isUploading: uploadFileMutation.isPending,
-    isSendingPrompt: sendPromptMutation.isPending,
-    uploadError: uploadFileMutation.error,
-    sendPromptError: sendPromptMutation.error,
-    lastJobId: lastFileRef.current?.jobId,
+    // State
+    fileState,
+    analysisResult,
     
-    // Job status and listing hooks
-    useJobStatus,
-    useJobs,
-    
-    // Direct access to mutations if needed
+    // Upload and analysis methods
     uploadFile: uploadFileMutation.mutateAsync,
-    sendPrompt: sendPromptMutation.mutateAsync,
+    analyzeDocument: analyzeDocumentMutation.mutateAsync,
+    uploadAndAnalyze,
+    
+    // Loading states
+    isUploading: uploadFileMutation.isPending,
+    isAnalyzing: analyzeDocumentMutation.isPending,
+    
+    // Errors
+    uploadError: uploadFileMutation.error,
+    analysisError: analyzeDocumentMutation.error,
+    
+    // Last file reference
+    lastFileId: lastFileRef.current?.fileId,
+    
+    // Reset state
+    reset: () => {
+      setFileState({ file: null, fileId: null, status: 'idle' });
+      setAnalysisResult(null);
+    }
   };
 };
 

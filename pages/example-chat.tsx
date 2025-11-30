@@ -49,20 +49,27 @@ export default function ExampleChat() {
   
   // Use the file upload hook
   const { 
-    sendMessage: sendChatMessage, 
-    isUploading, 
-    isSendingPrompt,
-    lastJobId
+    uploadAndAnalyze,
+    isUploading,
+    isAnalyzing,
+    fileState,
+    lastFileId
   } = useFileUpload();
+  
+  // Update the send button text based on state
+  const sendButtonText = isProcessing 
+    ? (isUploading || isAnalyzing ? 'Processing...' : 'Sending...')
+    : 'Send';
   
   const pdfInputRef = useRef<HTMLInputElement>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
-  // WebSocket connection
+  // WebSocket connection with authentication
   const { sendMessage, isConnected } = useWebSocket({
+    authToken: user?.token, // Pass the JWT token for authentication
     onConnect: () => {
-      console.log('🔌 WebSocket connected, verifying authentication...');
+      console.log('🔌 WebSocket connected and authenticated');
       setConnectionStatus('connected');
       setConnectionError(null);
       
@@ -91,8 +98,16 @@ export default function ExampleChat() {
       const errorMessage = event instanceof ErrorEvent ? event.message : 'Connection error';
       console.error('WebSocket error:', errorMessage, event);
       setConnectionStatus('error');
-      setConnectionError(`Connection error: ${errorMessage}`);
+      
+      // Provide more specific error messages based on the error type
+      if ('code' in event && (event as any).code === 4001) {
+        setConnectionError('Authentication failed. Please log in again.');
+      } else {
+        setConnectionError(`Connection error: ${errorMessage}`);
+      }
     },
+    reconnectInterval: 3000, // 3 seconds between reconnection attempts
+    maxReconnectAttempts: 10, // Try to reconnect up to 10 times
     onMessage: (message) => {
       console.log('📨 Received WebSocket message:', message);
       
@@ -189,6 +204,20 @@ export default function ExampleChat() {
   // Handle WebSocket messages
   function handleWebSocketMessage(message: WebSocketMessage) {
     console.log('📨 WebSocket message:', message);
+    
+    // Handle authentication response
+    if (message.type === 'auth_response') {
+      if (message.authenticated) {
+        console.log('✅ WebSocket authentication successful');
+        setConnectionStatus('connected');
+        setConnectionError(null);
+      } else {
+        console.error('❌ WebSocket authentication failed:', message.error);
+        setConnectionStatus('error');
+        setConnectionError(`Authentication failed: ${message.error || 'Unknown error'}`);
+      }
+      return;
+    }
 
     switch (message.type) {
       case 'job_update':
@@ -268,44 +297,45 @@ export default function ExampleChat() {
 
     try {
       // Get the first completed attachment if it exists
-      const completedAttachment = attachments.find(att => att.status === 'completed' && att.file);
+      const completedAttachment = attachments.find(att => att.status === 'completed' && att.jobId);
       
-      if (completedAttachment?.file) {
-        // Use the file upload hook to handle the upload
-        const jobId = await sendChatMessage(completedAttachment.file, prompt);
+      if (completedAttachment?.jobId) {
+        // Use the analyzeDocument function to send a follow-up question
+        const token = localStorage.getItem('auth_token');
+        if (!token) {
+          throw new Error('No authentication token found');
+        }
         
-        // Store job ID
-        setCurrentJobId(jobId);
+        const response = await api.analyzeDocument(completedAttachment.jobId, prompt, token);
         
-        // Update attachment with job ID
-        setAttachments(prev => prev.map(att => 
-          att.id === completedAttachment.id 
-            ? { ...att, jobId, progress: 0 }
-            : att
-        ));
-
-        // Add placeholder AI message that will be streamed
-        const aiMessageIndex = newMessages.length;
-        setMessages(prev => [...prev, { 
-          role: 'assistant', 
-          content: '',
-          jobId
-        }]);
-        
-        // Start streaming effect
-        setStreamingMessageIndex(aiMessageIndex);
-        setDisplayedContent('Processing...');
+        // Add the AI's response to the chat
+        setMessages(prev => [
+          ...prev, 
+          { 
+            role: 'assistant' as const, 
+            content: response.response,
+            jobId: completedAttachment.jobId
+          }
+        ]);
       } else if (currentJobId) {
         // No new file but we have an existing job, just send the prompt
         try {
-          await sendChatMessage(null, prompt);
+          const token = localStorage.getItem('auth_token');
+          if (!token) {
+            throw new Error('No authentication token found');
+          }
           
-          // Add a simple response for the UI
-          setMessages(prev => [...prev, { 
-            role: 'assistant', 
-            content: 'Processing your follow-up question...',
-            jobId: currentJobId
-          }]);
+          const response = await api.analyzeDocument(currentJobId, prompt, token);
+          
+          // Add the AI's response to the chat
+          setMessages(prev => [
+            ...prev, 
+            { 
+              role: 'assistant' as const, 
+              content: response.response,
+              jobId: currentJobId
+            }
+          ]);
         } catch (error) {
           console.error('Error sending prompt:', error);
           setMessages(prev => [...prev, { 
@@ -329,7 +359,7 @@ export default function ExampleChat() {
     } finally {
       setIsProcessing(false);
     }
-  }, [inputValue, attachments, messages, sendChatMessage, currentJobId]);
+  }, [inputValue, attachments, messages, currentJobId]);
 
   // Streaming effect for AI responses
   useEffect(() => {
@@ -403,33 +433,32 @@ export default function ExampleChat() {
       const userMessage = `Uploading ${file.name}...`;
       setMessages(prev => [...prev, { role: 'user' as const, content: userMessage }]);
       
-      // Start the upload process
-      const prompt = 'Analyze this document';
-      const jobId = await sendChatMessage(file, prompt);
+      // Start the upload and analysis process
+      const { fileId, analysis } = await uploadAndAnalyze(file, 'Analyze this document');
       
-      // Update the attachment with the job ID and mark as completed
+      // Update the attachment with the file ID and mark as completed
       setAttachments(prev => 
         prev.map(att => 
           att.id === attachmentId 
-            ? { ...att, jobId, status: 'completed', progress: 100 }
+            ? { ...att, jobId: fileId, status: 'completed', progress: 100 }
             : att
         )
       );
       
-      // Add a placeholder AI message that will be updated by the WebSocket
+      // Add the AI's response to the chat
       setMessages(prev => [
         ...prev, 
         { 
           role: 'assistant' as const, 
-          content: '',
-          jobId
+          content: analysis,
+          jobId: fileId
         }
       ]);
       
-      setCurrentJobId(jobId);
+      setCurrentJobId(fileId);
       
     } catch (error) {
-      console.error('Upload error:', error);
+      console.error('Upload and analysis error:', error);
       
       // Update the attachment to show error state
       setAttachments(prev => 
@@ -445,7 +474,7 @@ export default function ExampleChat() {
         ...prev, 
         { 
           role: 'assistant' as const, 
-          content: `Error: ${error instanceof Error ? error.message : 'Failed to upload file'}`
+          content: `Error: ${error instanceof Error ? error.message : 'Failed to process file'}`
         }
       ]);
     }

@@ -1,4 +1,24 @@
-import { UploadResponse, JobStatusResponse, JobsListResponse } from '@/types/index';
+import { JobStatusResponse, JobsListResponse } from '@/types/index';
+
+export interface V1UploadResponse {
+  message: string;
+  data: {
+    file_id: string;
+    file_name: string;
+    file_type: string;
+    status: string;
+  };
+}
+
+export interface AIAnalysisRequest {
+  file_id: string;
+  query: string;
+}
+
+export interface AIAnalysisResponse {
+  response: string;
+  file_id: string;
+}
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 if (!API_BASE_URL) {
@@ -23,29 +43,14 @@ class APIClient {
   }
 
   /**
-   * Upload a file for processing
+   * Upload a file for processing (v1 API)
    */
   async uploadFile(
     file: File,
-    token: string,
-    prompt: string = '',
-    priority: number = 1,
-    scheduledAt?: string
-  ): Promise<UploadResponse> {
+    token: string
+  ): Promise<V1UploadResponse> {
     const formData = new FormData();
     formData.append('file', file);
-    
-    // Infer type from extension
-    const ext = file.name.split('.').pop()?.toLowerCase();
-    let type: 'csv' | 'pdf' | 'image' = 'image';
-    if (ext === 'csv') type = 'csv';
-    else if (ext === 'pdf') type = 'pdf';
-    
-    formData.append('type', type);
-    
-    if (prompt) formData.append('prompt', prompt);
-    if (priority) formData.append('priority', priority.toString());
-    if (scheduledAt) formData.append('scheduled_at', scheduledAt);
 
     const response = await fetch(this.buildUrl('upload'), {
       method: 'POST',
@@ -57,7 +62,35 @@ class APIClient {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
-      throw new Error(error?.errors || `Upload failed with ${response.status}`);
+      throw new Error(error?.message || `Upload failed with status ${response.status}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Analyze document with AI
+   */
+  async analyzeDocument(
+    fileId: string,
+    query: string,
+    token: string
+  ): Promise<AIAnalysisResponse> {
+    const response = await fetch(this.buildUrl('ai/analyze'), {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        file_id: fileId,
+        query: query,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error?.message || `Analysis failed with status ${response.status}`);
     }
 
     return response.json();
