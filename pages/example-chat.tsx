@@ -433,8 +433,8 @@ export default function ExampleChat() {
       const userMessage = `Uploading ${file.name}...`;
       setMessages(prev => [...prev, { role: 'user' as const, content: userMessage }]);
       
-      // Start the upload and analysis process
-      const { fileId, analysis } = await uploadAndAnalyze(file, 'Analyze this document');
+      // Start the upload and analysis process with the default prompt
+      const { fileId, analysis } = await uploadAndAnalyze(file);
       
       // Update the attachment with the file ID and mark as completed
       setAttachments(prev => 

@@ -98,6 +98,7 @@ class APIClient {
       },
       body: JSON.stringify({
         file_id: fileId,
+        prompt: query,
         query: query,
       }),
     });

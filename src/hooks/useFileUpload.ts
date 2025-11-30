@@ -87,7 +87,7 @@ export const useFileUpload = () => {
   });
 
   // Combined function to handle both upload and analysis
-  const uploadAndAnalyze = useCallback(async (file: File, prompt: string) => {
+  const uploadAndAnalyze = useCallback(async (file: File, prompt: string = 'Analyze this document and provide a summary') => {
     try {
       // Step 1: Upload the file
       const uploadResponse = await uploadFileMutation.mutateAsync(file);
