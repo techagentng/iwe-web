@@ -51,6 +51,20 @@ class APIClient {
   ): Promise<V1UploadResponse> {
     const formData = new FormData();
     formData.append('file', file);
+    
+    // Extract file extension and map to allowed types (csv, pdf, image)
+    const fileExt = file.name.split('.').pop()?.toLowerCase();
+    let fileType = 'image'; // default to image
+    
+    if (fileExt === 'pdf') {
+      fileType = 'pdf';
+    } else if (fileExt === 'csv') {
+      fileType = 'csv';
+    } else if (file.type.startsWith('image/')) {
+      fileType = 'image';
+    }
+    
+    formData.append('type', fileType);
 
     const response = await fetch(this.buildUrl('upload'), {
       method: 'POST',
