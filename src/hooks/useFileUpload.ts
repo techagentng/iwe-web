@@ -71,7 +71,7 @@ export const useFileUpload = () => {
       return api.analyzeDocument(fileId, query, token);
     },
     onSuccess: (data) => {
-      setAnalysisResult(data.response);
+      setAnalysisResult(data.data.answer);
       setFileState(prev => ({
         ...prev,
         status: 'completed'
@@ -101,7 +101,7 @@ export const useFileUpload = () => {
       
       return {
         fileId,
-        analysis: analysisResponse.response
+        analysis: analysisResponse.data.answer
       };
     } catch (error) {
       console.error('Upload and analysis failed:', error);

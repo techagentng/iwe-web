@@ -313,7 +313,7 @@ export default function ExampleChat() {
           ...prev, 
           { 
             role: 'assistant' as const, 
-            content: response.data.answer, // Access the answer from data.answer
+            content: response.data.answer, 
             jobId: completedAttachment.jobId
           }
         ]);
