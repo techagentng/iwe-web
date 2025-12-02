@@ -83,21 +83,52 @@ function getWebSocketUrl(isReactNative: boolean = false, authToken?: string): st
 
 const WS_URL = getWebSocketUrl();
 
+interface MessageHandler {
+  (message: any): void;
+}
+
+type MessageHandlers = Map<string, MessageHandler>;
+
 interface UseWebSocketOptions {
+  /** Global message handler */
   onMessage?: (message: WebSocketMessage) => void;
+  /** Callback when connection is established */
   onConnect?: () => void;
+  /** Callback when connection is closed */
   onDisconnect?: () => void;
-  onError?: (error: Event) => void;
+  /** Callback when an error occurs */
+  onError?: (error: Event | Error) => void;
+  /** Initial delay before reconnecting (ms) */
   reconnectInterval?: number;
+  /** Maximum number of reconnection attempts */
   maxReconnectAttempts?: number;
+  /** JWT token for authentication */
   authToken?: string;
+  /** Initial message handlers */
+  messageHandlers?: MessageHandlers;
+  /** Enable ping/pong keep-alive (default: true) */
+  keepAlive?: boolean;
+  /** Ping interval in milliseconds (default: 30000) */
+  pingInterval?: number;
 }
 
 interface UseWebSocketReturn {
+  /** Whether the WebSocket is connected */
   isConnected: boolean;
+  /** Last received message */
   lastMessage: WebSocketMessage | null;
-  sendMessage: (message: any) => void;
+  /** Send a message through the WebSocket */
+  sendMessage: (type: string, data?: any) => boolean;
+  /** Reconnect to the WebSocket */
   reconnect: () => void;
+  /** Add a message handler for a specific message type */
+  addMessageHandler: (type: string, handler: MessageHandler) => () => void;
+  /** Remove a message handler */
+  removeMessageHandler: (type: string) => void;
+  /** Clear all message handlers */
+  clearMessageHandlers: () => void;
+  /** Get the current WebSocket instance */
+  getWebSocket: () => WebSocket | null;
 }
 
 export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketReturn {
@@ -108,53 +139,121 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
     onError,
     reconnectInterval = 5000,
     maxReconnectAttempts = 5,
-    authToken
+    authToken,
+    messageHandlers: initialHandlers,
+    keepAlive = true,
+    pingInterval = 30000
   } = options;
   
   const debug = (message: string, data?: any) => {
-    console.log(`[WebSocket] ${message}`, data || '');
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[WebSocket] ${message}`, data || '');
+    }
   };
 
   const [isConnected, setIsConnected] = useState(false);
   const [lastMessage, setLastMessage] = useState<WebSocketMessage | null>(null);
-  const messageBufferRef = useRef(''); // Buffer for streaming messages
+  const messageBufferRef = useRef('');
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
+  const pingIntervalRef = useRef<NodeJS.Timeout | undefined>(undefined);
+  const messageHandlersRef = useRef<MessageHandlers>(initialHandlers || new Map());
+  const isMountedRef = useRef(true);
 
+  // Setup ping/pong mechanism
+  const setupPingPong = useCallback((ws: WebSocket) => {
+    if (!keepAlive) return;
+    
+    // Clear any existing interval
+    if (pingIntervalRef.current) {
+      clearInterval(pingIntervalRef.current);
+    }
+    
+    // Send ping at the specified interval
+    pingIntervalRef.current = setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN) {
+        const pingMessage = { 
+          type: 'ping', 
+          timestamp: Date.now() 
+        };
+        ws.send(JSON.stringify(pingMessage));
+        debug('Sent ping', pingMessage);
+      }
+    }, pingInterval);
+  }, [keepAlive, pingInterval]);
+
+  // Handle incoming messages
+  const handleMessage = useCallback((message: any) => {
+    try {
+      debug('Received message:', message);
+      
+      // Handle ping/pong
+      if (message.type === 'pong') {
+        debug('Received pong', { timestamp: message.timestamp });
+        return;
+      }
+      
+      // Handle auth response
+      if (message.type === 'auth_response') {
+        if (message.authenticated) {
+          debug('WebSocket authentication successful');
+          if (onConnect) onConnect();
+        } else {
+          const error = new Error(`Authentication failed: ${message.error || 'Unknown error'}`);
+          debug('WebSocket authentication failed:', error);
+          wsRef.current?.close(4001, 'Authentication failed');
+          onError?.(error);
+        }
+        return;
+      }
+      
+      // Update last message
+      setLastMessage(message);
+      
+      // Call specific handler if registered
+      const handler = messageHandlersRef.current.get(message.type);
+      if (handler) {
+        try {
+          handler(message);
+        } catch (err) {
+          console.error(`Error in message handler for type '${message.type}':`, err);
+        }
+      }
+      
+      // Call global message handler
+      if (onMessage) {
+        onMessage(message);
+      }
+    } catch (error) {
+      console.error('Error handling message:', error, message);
+    }
+  }, [onMessage, onConnect, onError]);
+
+  // Connect to WebSocket
   const connect = useCallback(() => {
+    if (!isMountedRef.current) return;
+    
     try {
       const wsUrl = getWebSocketUrl(false, authToken);
-      console.log('🔌 Connecting to WebSocket:', wsUrl);
+      debug('Connecting to WebSocket:', wsUrl);
       
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
       
-      // Debug WebSocket events
-      ws.addEventListener('open', (event) => {
-        console.log('✅ WebSocket connection established');
-      });
+      // Setup ping/pong
+      if (keepAlive) {
+        setupPingPong(ws);
+      }
       
-      ws.addEventListener('error', (error) => {
-        console.error('❌ WebSocket error:', {
-          type: 'WebSocket Error',
-          timestamp: new Date().toISOString(),
-          error,
-          readyState: ws.readyState,
-          url: wsUrl
-        });
-      });
-      
-      ws.addEventListener('close', (event) => {
-        console.log('🔌 WebSocket connection closed:', {
-          code: event.code,
-          reason: event.reason,
-          wasClean: event.wasClean
-        });
-      });
-
-      wsRef.current.onopen = () => {
-        console.log('WebSocket connected, authenticating...');
+      // Connection opened
+      ws.onopen = () => {
+        if (!isMountedRef.current) {
+          ws.close();
+          return;
+        }
+        
+        debug('WebSocket connected, authenticating...');
         setIsConnected(true);
         reconnectAttemptsRef.current = 0;
         
@@ -165,117 +264,234 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
             token: authToken,
             timestamp: new Date().toISOString()
           };
-          console.log('Sending auth message:', authMessage);
-          wsRef.current?.send(JSON.stringify(authMessage));
+          debug('Sending auth message:', authMessage);
+          ws.send(JSON.stringify(authMessage));
         } else if (onConnect) {
           onConnect();
         }
       };
-
-      wsRef.current.onmessage = (event) => {
+      
+      // Message received
+      ws.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data);
-          console.log('Received WebSocket message:', message);
-          
-          // Handle auth response
-          if (message.type === 'auth_response') {
-            if (message.authenticated) {
-              console.log('WebSocket authentication successful');
-              if (onConnect) onConnect();
-            } else {
-              console.error('WebSocket authentication failed:', message.error);
-              wsRef.current?.close(4001, 'Authentication failed');
-            }
-            return;
-          }
-          
-          setLastMessage(message);
-          if (onMessage) onMessage(message);
+          handleMessage(message);
         } catch (error) {
           console.error('Error parsing WebSocket message:', error, event.data);
         }
       };
-
+      
+      // Handle errors
       ws.onerror = (event) => {
-        const error = {
-          type: 'WebSocket Error',
-          timestamp: new Date().toISOString(),
+        const error = new Error('WebSocket error');
+        debug('WebSocket error:', { 
           error: event,
           readyState: ws.readyState,
-          url: wsUrl
-        };
-        console.error('WebSocket error:', error);
-        debug('WebSocket Error', error);
-        onError?.(event);
+          url: wsUrl 
+        });
+        
+        if (onError) {
+          onError(error);
+        }
+        
+        // Close the connection on error to trigger reconnection
         ws.close();
       };
-
-      ws.onclose = () => {
-        console.log('🔌 WebSocket disconnected');
+      
+      // Handle connection close
+      ws.onclose = (event) => {
+        if (!isMountedRef.current) return;
+        
+        debug('WebSocket disconnected:', {
+          code: event.code,
+          reason: event.reason,
+          wasClean: event.wasClean,
+          url: wsUrl
+        });
+        
+        // Clear ping interval
+        if (pingIntervalRef.current) {
+          clearInterval(pingIntervalRef.current);
+          pingIntervalRef.current = undefined;
+        }
+        
         setIsConnected(false);
         wsRef.current = null;
-        onDisconnect?.();
-
-        // Attempt to reconnect
-        if (reconnectAttemptsRef.current < maxReconnectAttempts) {
-          reconnectAttemptsRef.current += 1;
-          const delay = Math.min(
-            reconnectInterval * Math.pow(2, reconnectAttemptsRef.current - 1),
-            30000 // Max 30 seconds
-          );
-          
-          debug(`Reconnecting in ${delay}ms (attempt ${reconnectAttemptsRef.current}/${maxReconnectAttempts})`);
-          
-          reconnectTimeoutRef.current = setTimeout(() => {
-            debug(`Attempting to reconnect (${reconnectAttemptsRef.current}/${maxReconnectAttempts})`);
-            connect();
-          }, delay);
-        } else {
-          const error = new Event('max_reconnect_attempts');
-          debug('Max reconnection attempts reached');
-          onError?.(error);
+        
+        if (onDisconnect) {
+          onDisconnect();
         }
+        
+        // Don't attempt to reconnect if we explicitly closed the connection
+        if (event.code === 1000 || event.code === 1005) {
+          debug('WebSocket closed normally, not reconnecting');
+          return;
+        }
+        
+        // Check if we've reached max reconnection attempts
+        if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
+          const error = new Error(`Max reconnection attempts (${maxReconnectAttempts}) reached`);
+          debug(error.message);
+          if (onError) {
+            onError(error);
+          }
+          return;
+        }
+        
+        // Calculate delay with exponential backoff and jitter
+        const baseDelay = Math.min(
+          reconnectInterval * Math.pow(2, reconnectAttemptsRef.current),
+          30000 // Max 30 seconds
+        );
+        const jitter = Math.random() * 1000; // Add up to 1s jitter
+        const delay = Math.min(baseDelay + jitter, 30000);
+        
+        reconnectAttemptsRef.current += 1;
+        
+        debug(`Reconnecting in ${Math.round(delay)}ms (attempt ${reconnectAttemptsRef.current}/${maxReconnectAttempts})`);
+        
+        reconnectTimeoutRef.current = setTimeout(() => {
+          if (!isMountedRef.current) return;
+          debug(`Attempting to reconnect (${reconnectAttemptsRef.current}/${maxReconnectAttempts})`);
+          connect();
+        }, delay);
       };
+      
     } catch (error) {
       console.error('Failed to create WebSocket connection:', error);
+      if (onError && error instanceof Error) {
+        onError(error);
+      }
     }
-  }, [onMessage, onConnect, onDisconnect, onError, reconnectInterval, maxReconnectAttempts, authToken]);
+  }, [
+    onMessage, 
+    onConnect, 
+    onDisconnect, 
+    onError, 
+    reconnectInterval, 
+    maxReconnectAttempts, 
+    authToken, 
+    keepAlive, 
+    setupPingPong,
+    handleMessage
+  ]);
 
-  const sendMessage = useCallback((message: any) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
+  // Send a message through the WebSocket
+  const sendMessage = useCallback((type: string, data?: any): boolean => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+      console.warn('WebSocket is not connected. Message not sent:', { type, ...data });
+      return false;
+    }
+    
+    try {
+      const message = { 
+        type, 
+        ...data, 
+        timestamp: new Date().toISOString() 
+      };
+      
       wsRef.current.send(JSON.stringify(message));
-    } else {
-      console.warn('WebSocket is not connected. Message not sent:', message);
+      debug('Sent message:', message);
+      return true;
+    } catch (error) {
+      console.error('Error sending message:', error, { type, ...data });
+      return false;
     }
   }, []);
+  
+  // Add a message handler for a specific message type
+  const addMessageHandler = useCallback((type: string, handler: MessageHandler) => {
+    messageHandlersRef.current.set(type, handler);
+    debug(`Added handler for message type: ${type}`);
+    
+    // Return cleanup function
+    return () => {
+      messageHandlersRef.current.delete(type);
+      debug(`Removed handler for message type: ${type}`);
+    };
+  }, []);
+  
+  // Remove a message handler
+  const removeMessageHandler = useCallback((type: string) => {
+    messageHandlersRef.current.delete(type);
+    debug(`Removed handler for message type: ${type}`);
+  }, []);
+  
+  // Clear all message handlers
+  const clearMessageHandlers = useCallback(() => {
+    messageHandlersRef.current.clear();
+    debug('Cleared all message handlers');
+  }, []);
+  
+  // Get the current WebSocket instance
+  const getWebSocket = useCallback((): WebSocket | null => {
+    return wsRef.current;
+  }, []);
 
+  // Reconnect to the WebSocket
   const reconnect = useCallback(() => {
-    if (wsRef.current) {
-      debug('Closing existing connection');
-      wsRef.current.close();
+    // Reset reconnection attempts
+    reconnectAttemptsRef.current = 0;
+    
+    // Clear any pending reconnection
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = undefined;
     }
-
-    debug(`Connecting to WebSocket: ${WS_URL}`);
-    connect();
+    
+    // Close existing connection if any
+    if (wsRef.current) {
+      debug('Closing existing connection for reconnection');
+      wsRef.current.close();
+    } else {
+      // If no existing connection, just connect
+      debug('Initiating new connection');
+      connect();
+    }
   }, [connect]);
 
+  // Initialize WebSocket connection on mount
   useEffect(() => {
+    isMountedRef.current = true;
+    
+    // Initial connection
     connect();
-
+    
+    // Cleanup on unmount
     return () => {
+      isMountedRef.current = false;
+      
+      // Clear reconnection timeout
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = undefined;
       }
+      
+      // Clear ping interval
+      if (pingIntervalRef.current) {
+        clearInterval(pingIntervalRef.current);
+        pingIntervalRef.current = undefined;
+      }
+      
+      // Close WebSocket connection
       if (wsRef.current) {
         wsRef.current.close();
+        wsRef.current = null;
       }
+      
+      debug('WebSocket hook unmounted');
     };
   }, [connect]);
 
+  // Return the WebSocket API
   return {
     isConnected,
     lastMessage,
     sendMessage,
     reconnect,
+    addMessageHandler,
+    removeMessageHandler,
+    clearMessageHandlers,
+    getWebSocket
   };
 }

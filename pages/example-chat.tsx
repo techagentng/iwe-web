@@ -80,7 +80,7 @@ export default function ExampleChat() {
           timestamp: Date.now(),
           sessionId: user?.id || 'unknown'
         };
-        sendMessage(verifyMessage);
+        sendMessage('verify_auth', verifyMessage);
         console.log('🔍 Sent auth verification request', verifyMessage);
       };
       
@@ -313,7 +313,7 @@ export default function ExampleChat() {
           ...prev, 
           { 
             role: 'assistant' as const, 
-            content: response.response,
+            content: response.data.answer, // Access the answer from data.answer
             jobId: completedAttachment.jobId
           }
         ]);
@@ -332,7 +332,7 @@ export default function ExampleChat() {
             ...prev, 
             { 
               role: 'assistant' as const, 
-              content: response.response,
+              content: response.data.answer, // Access the answer from data.answer
               jobId: currentJobId
             }
           ]);

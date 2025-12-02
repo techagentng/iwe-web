@@ -16,8 +16,12 @@ export interface AIAnalysisRequest {
 }
 
 export interface AIAnalysisResponse {
-  response: string;
-  file_id: string;
+  data: {
+    answer: string;
+  };
+  errors: string;
+  message: string;
+  status: string;
 }
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
@@ -90,25 +94,76 @@ class APIClient {
     query: string,
     token: string
   ): Promise<AIAnalysisResponse> {
-    const response = await fetch(this.buildUrl('ai/analyze'), {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+    try {
+      const url = this.buildUrl('ai/analyze');
+      const requestBody = {
         file_id: fileId,
-        prompt: query,
         query: query,
-      }),
-    });
+        prompt: query,
+      };
 
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      throw new Error(error?.message || `Analysis failed with status ${response.status}`);
+      console.log('🔍 Sending analysis request:', {
+        url,
+        method: 'POST',
+        body: requestBody
+      });
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      let responseData;
+      try {
+        responseData = await response.json();
+        console.log('📥 Analysis response:', responseData);
+      } catch (e) {
+        console.error('❌ Failed to parse JSON response:', e);
+        throw new Error('Invalid response from server');
+      }
+      
+      if (!response.ok) {
+        console.error('❌ Analysis failed:', {
+          status: response.status,
+          statusText: response.statusText,
+          responseData
+        });
+        
+        const errorMessage = responseData?.message || 
+                          responseData?.error?.message || 
+                          responseData?.error ||
+                          `Analysis failed with status ${response.status} ${response.statusText}`;
+        
+        throw new Error(errorMessage);
+      }
+
+      if (!responseData || typeof responseData !== 'object') {
+        console.error('❌ Invalid response format:', responseData);
+        throw new Error('Invalid response format from analysis service');
+      }
+
+      return responseData as AIAnalysisResponse;
+    } catch (error) {
+      console.error('❌ Error in analyzeDocument:', {
+        error,
+        fileId,
+        query: query.substring(0, 100) + (query.length > 100 ? '...' : ''),
+      });
+      
+      if (error instanceof Error) {
+        throw error;
+      }
+      
+      if (typeof error === 'string') {
+        throw new Error(error);
+      }
+      
+      throw new Error('Failed to analyze document');
     }
-
-    return response.json();
   }
 
   /**
