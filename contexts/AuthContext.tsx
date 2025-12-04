@@ -172,7 +172,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
 
       // Navigate to dashboard
-      router.push('/example-chat');
+      router.push('/dashboard');
     } catch (error) {
       console.error('Google Login error:', error);
       

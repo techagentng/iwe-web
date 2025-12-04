@@ -1,53 +1,82 @@
 import Link from 'next/link';
-import { useState } from 'react';
-import { LayoutDashboard, User, Settings, LogOut } from 'lucide-react';
-import styles from '@/components/Sidebar.module.css';
+import { LayoutDashboard, Bed, Calendar, Settings, LogOut } from 'lucide-react';
+import { useRouter } from 'next/router';
 
-const links = [
-  { href: '/', label: 'Home', icon: LayoutDashboard },
-  { href: '/login', label: 'Login', icon: LogOut },
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/profile', label: 'Profile', icon: User },
-  { href: '/settings', label: 'Settings', icon: Settings },
-  { label: 'Logout', icon: LogOut, logout: true },
-];
+const MenuItem = ({ 
+  icon, 
+  label, 
+  active = false,
+  href = '#'
+}: { 
+  icon: React.ReactNode; 
+  label: string; 
+  active?: boolean;
+  href?: string;
+}) => {
+  const router = useRouter();
+  const isActive = active || router.pathname === href;
+  
+  return (
+    <Link 
+      href={href}
+      className={`flex items-center space-x-3 p-3 rounded-lg transition-colors ${
+        isActive 
+          ? 'bg-indigo-50 text-indigo-700' 
+          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+      }`}
+    >
+      <div className={`p-1.5 rounded-lg ${isActive ? 'bg-indigo-100' : 'bg-gray-100'}`}>
+        {icon}
+      </div>
+      <span className="font-medium">{label}</span>
+    </Link>
+  );
+};
 
 export default function Sidebar() {
-  const [open, setOpen] = useState(true);
-
   return (
-    <aside className={open ? styles.sidebarOpen : styles.sidebarClosed}>
-      <button className={styles.toggleBtn} onClick={() => setOpen(o => !o)}>
-        {open ? '☰' : '☰'}
-      </button>
-      <nav className={styles.sidebarNav}>
-        <ul>
-          {links.map(link => (
-            <li key={link.label}>
-              {link.logout ? (
-                <a
-                  href="#"
-                  onClick={e => {
-                    e.preventDefault();
-                    localStorage.removeItem('auth');
-                    document.cookie = 'auth=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
-                    window.location.href = '/login';
-                  }}
-                  style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }}
-                >
-                  {link.icon && <link.icon size={22} />}
-                  {open && link.label}
-                </a>
-              ) : (
-                <Link href={link.href!} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  {link.icon && <link.icon size={22} />}
-                  {open && link.label}
-                </Link>
-              )}
-            </li>
-          ))}
-        </ul>
-      </nav>
+    <aside className="w-64 bg-white shadow-lg p-6 flex flex-col justify-between">
+      <div>
+        <div className="text-2xl font-bold mb-10 text-indigo-600">LogoType</div>
+        <nav className="space-y-2">
+          <MenuItem 
+            icon={<LayoutDashboard size={20} />} 
+            label="Dashboard" 
+            href="/dashboard"
+          />
+          <MenuItem 
+            icon={<Bed size={20} />} 
+            label="Rooms" 
+            href="/rooms"
+          />
+          <MenuItem 
+            icon={<Calendar size={20} />} 
+            label="Bookings" 
+            href="/bookings"
+          />
+          <MenuItem 
+            icon={<Settings size={20} />} 
+            label="Preferences" 
+            href="/preferences"
+          />
+        </nav>
+      </div>
+      
+      <div className="mt-8 pt-6 border-t border-gray-100">
+        <button 
+          onClick={() => {
+            // Handle logout
+            localStorage.removeItem('auth');
+            window.location.href = '/login';
+          }}
+          className="flex items-center space-x-3 w-full p-3 text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-lg transition-colors"
+        >
+          <div className="p-1.5 rounded-lg bg-gray-100">
+            <LogOut size={20} />
+          </div>
+          <span className="font-medium">Logout</span>
+        </button>
+      </div>
     </aside>
   );
 }

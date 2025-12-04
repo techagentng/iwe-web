@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-const exemptedPaths = ['/', '/login', '/signup', '/pricing', '/dashboard', '/example-chat', '/auth/google/callback'];
+const exemptedPaths = ['/', '/login', '/signup', '/pricing', '/dashboard', '/example-chat', '/auth/google/callback', '/bookings', '/bookings/new', '/rooms', '/preferences'];
 
 export function middleware(req: NextRequest) {
-  const isAuthenticated = req.cookies.get('auth');
+  const isAuthenticated = req.cookies.get('auth_token');
   const { pathname } = req.nextUrl;
 
   // Allow public pages for unauthenticated users
